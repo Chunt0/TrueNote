@@ -1,4 +1,4 @@
-import { FileText, Plus } from 'lucide-react'
+import { FileText, Plus, Trash2 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { ErrorState } from '@/components/feedback/ErrorState'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/components/ui/sonner'
 import { SectionTree } from '@/components/wiki/SectionTree'
+import { TrashDialog } from '@/components/wiki/TrashDialog'
 import { useCreateDoc, useDocs, useSearchDocs } from '@/hooks/use-docs'
 import { cn } from '@/lib/utils'
 
@@ -44,6 +45,7 @@ export function WikiNav() {
   const [query, setQuery] = useState('') // debounced filter
   const [newOpen, setNewOpen] = useState(false)
   const [newPath, setNewPath] = useState('')
+  const [trashOpen, setTrashOpen] = useState(false)
 
   // Debounce so we don't grep on every keystroke.
   useEffect(() => {
@@ -85,10 +87,16 @@ export function WikiNav() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between px-4 pb-1">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Wiki</h2>
-        <Button size="icon" variant="ghost" className="size-6" aria-label="New page" onClick={() => openNew()}>
-          <Plus className="size-4" />
-        </Button>
+        <div className="flex items-center">
+          <Button size="icon" variant="ghost" className="size-6" aria-label="Trash" onClick={() => setTrashOpen(true)}>
+            <Trash2 className="size-4" />
+          </Button>
+          <Button size="icon" variant="ghost" className="size-6" aria-label="New page" onClick={() => openNew()}>
+            <Plus className="size-4" />
+          </Button>
+        </div>
       </div>
+      <TrashDialog open={trashOpen} onOpenChange={setTrashOpen} />
       <div className="px-3 pb-2">
         <Input
           placeholder="Search title & contents…"

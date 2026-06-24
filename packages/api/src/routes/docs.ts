@@ -1,10 +1,17 @@
 import { Elysia, t } from 'elysia'
 import {
+  backlinks,
   createDoc,
   deleteDoc,
+  docDiff,
+  docHistory,
   listDocs,
+  listTrash,
+  purgeTrash,
   readDoc,
   renameDoc,
+  restoreDoc,
+  restoreFromTrash,
   searchDocs,
   updateDoc,
 } from '../lib/docstore'
@@ -31,6 +38,24 @@ const docsRoutes = new Elysia({ prefix: '/api/docs' })
   .get('/search', ({ query }) => ok(searchDocs(query.q)), {
     query: t.Object({ q: t.String({ maxLength: 200 }) }),
   })
+  .get('/history', ({ query }) => ok(docHistory(query.path)), {
+    query: t.Object({ path: t.String({ minLength: 1, maxLength: 400 }) }),
+  })
+  .get('/backlinks', ({ query }) => ok(backlinks(query.path)), {
+    query: t.Object({ path: t.String({ minLength: 1, maxLength: 400 }) }),
+  })
+  .get('/diff', ({ query }) => ok({ diff: docDiff(query.path, query.rev) }), {
+    query: t.Object({
+      path: t.String({ minLength: 1, maxLength: 400 }),
+      rev: t.String({ minLength: 7, maxLength: 40 }),
+    }),
+  })
+  .post('/restore', ({ body, user }) => ok(restoreDoc(body.path, body.rev, authorOf(user))), {
+    body: t.Object({
+      path: t.String({ minLength: 1, maxLength: 400 }),
+      rev: t.String({ minLength: 7, maxLength: 40 }),
+    }),
+  })
   .post('/', ({ body, user }) => ok(createDoc(body.path, body.content, authorOf(user))), {
     body: t.Object({
       path: t.String({ minLength: 1, maxLength: 400 }),
@@ -52,6 +77,13 @@ const docsRoutes = new Elysia({ prefix: '/api/docs' })
   })
   .delete('/', ({ query, user }) => ok(deleteDoc(query.path, authorOf(user))), {
     query: t.Object({ path: t.String({ minLength: 1, maxLength: 400 }) }),
+  })
+  .get('/trash', () => ok(listTrash()))
+  .post('/trash/restore', ({ body, user }) => ok(restoreFromTrash(body.id, authorOf(user))), {
+    body: t.Object({ id: t.String({ minLength: 1, maxLength: 400 }) }),
+  })
+  .delete('/trash', ({ query, user }) => ok(purgeTrash(query.id, authorOf(user))), {
+    query: t.Object({ id: t.String({ minLength: 1, maxLength: 400 }) }),
   })
 
 export default docsRoutes

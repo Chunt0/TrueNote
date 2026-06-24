@@ -14,8 +14,8 @@ One-page index of every wired capability. If it's here, don't rebuild it.
 | Auth gate (Mode C sessions + service bearer fallback) | `lib/auth.ts` |
 | Sessions + users (cookie, upsert, provider-agnostic) | `lib/session.ts` |
 | Auth provider endpoints (dev login/logout; Entra stub) | `routes/auth.ts` |
-| Wiki file store — `.md` on disk: path safety, atomic writes, OCC, git, search | `lib/docstore.ts` |
-| Wiki doc API (list/read/search/create/update/rename/delete) | `routes/docs.ts` |
+| Wiki file store — `.md` on disk: path safety, atomic writes, OCC, git, fuzzy search, history/restore, trash, backlinks | `lib/docstore.ts` |
+| Wiki doc API (CRUD + search + history/diff/restore + trash + backlinks) | `routes/docs.ts` |
 | LLM provider seam (Claude + OpenAI-compatible, via fetch) | `lib/llm.ts` |
 | Wiki agent (bounded tool loop over the file store) | `lib/agent.ts` |
 | Assistant chat API (stateless; client supplies history) | `routes/assistant.ts` |

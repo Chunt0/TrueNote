@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  backlinks,
   createDoc,
   deleteDoc,
   listDocs,
@@ -108,5 +109,24 @@ describe('docstore: search + delete', () => {
     expect(hit).toBeDefined()
     // The actual word ("student") is reported for highlighting, not the typo.
     expect(hit?.terms).toContain('student')
+  })
+})
+
+describe('docstore: backlinks', () => {
+  it('finds pages linking here via markdown links and [[wikilinks]]', () => {
+    const dir = uniq()
+    const target = `${dir}/bltarget.md`
+    createDoc(target, '# Backlink target', author)
+    const viaWiki = `${dir}/via-wiki.md`
+    createDoc(viaWiki, 'See [[bltarget]] for details.', author)
+    const viaMd = `${dir}/via-md.md`
+    createDoc(viaMd, `Link: [t](${dir}/bltarget.md)`, author)
+    const unrelated = `${dir}/unrelated.md`
+    createDoc(unrelated, 'no links here', author)
+
+    const paths = backlinks(target).map((b) => b.path)
+    expect(paths).toContain(viaWiki)
+    expect(paths).toContain(viaMd)
+    expect(paths).not.toContain(unrelated)
   })
 })

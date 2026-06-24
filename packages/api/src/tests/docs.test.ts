@@ -59,6 +59,61 @@ describe('docs API (happy path via service bearer)', () => {
   })
 })
 
+describe('docs history & restore', () => {
+  it('history 401s without auth', async () => {
+    const res = await api('/api/docs/history?path=welcome.md', {}, false)
+    expect(res.status).toBe(401)
+  })
+
+  it('history returns an array (empty when git is off in tests)', async () => {
+    const res = await json(await api('/api/docs/history?path=welcome.md'))
+    expect(res.ok).toBe(true)
+    expect(Array.isArray(res.data)).toBe(true)
+  })
+
+  it('restore rejects a malformed revision', async () => {
+    const res = await api('/api/docs/restore', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: 'welcome.md', rev: 'zzzzzzz' }),
+    })
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('docs trash', () => {
+  it('trash list 401s without auth', async () => {
+    const res = await api('/api/docs/trash', {}, false)
+    expect(res.status).toBe(401)
+  })
+
+  it('delete → appears in trash → restore brings it back', async () => {
+    const path = `${uniq()}/trashme.md`
+    await api('/api/docs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path, content: '# Trash me' }),
+    })
+    await api(`/api/docs?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+
+    const trash = await json(await api('/api/docs/trash'))
+    const item = trash.data.find((t: { path: string }) => t.path === path)
+    expect(item).toBeDefined()
+
+    const restored = await json(
+      await api('/api/docs/trash/restore', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: item.id }),
+      }),
+    )
+    expect(restored.ok).toBe(true)
+    expect(restored.data.path).toBe(path)
+    const read = await api(`/api/docs/read?path=${encodeURIComponent(path)}`)
+    expect(read.status).toBe(200)
+  })
+})
+
 describe('auth: dev provider (Mode C session)', () => {
   it('logs in, sets a session cookie, and identifies the user via /api/me', async () => {
     const login = await api(
