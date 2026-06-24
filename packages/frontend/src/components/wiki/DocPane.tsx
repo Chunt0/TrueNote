@@ -128,6 +128,11 @@ export function DocPane({
         <div className="min-w-0 space-y-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">{doc.title}</h1>
           <p className="truncate font-mono text-xs text-muted-foreground">{doc.path}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {doc.lastEdit
+              ? `Last edited by ${doc.lastEdit.author} · ${new Date(doc.lastEdit.date).toLocaleString()}`
+              : `Last edited ${new Date(doc.updatedAt).toLocaleString()}`}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {editing ? (

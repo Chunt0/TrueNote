@@ -103,6 +103,17 @@ export function useRestoreDoc() {
   })
 }
 
+// ── Activity feed (git-backed) ───────────────────────────────────────────────
+export type ActivityEntry = Payload<typeof api.docs.activity.get>[number]
+
+export function useActivity() {
+  return useQuery({
+    queryKey: ['docs', 'activity'],
+    queryFn: () => unwrap(api.docs.activity.get()),
+    staleTime: 15_000,
+  })
+}
+
 // ── Backlinks ────────────────────────────────────────────────────────────────
 export function useBacklinks(path: string | null) {
   return useQuery({

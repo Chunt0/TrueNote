@@ -1,14 +1,15 @@
-import { FileText } from 'lucide-react'
+import { FileText, GitCommitHorizontal } from 'lucide-react'
 import { Link } from 'react-router'
 import { PuttyMascot } from '@/components/brand/PuttyMascot'
 import { Card } from '@/components/ui/card'
-import { useDocs } from '@/hooks/use-docs'
+import { useActivity, useDocs } from '@/hooks/use-docs'
 import { APP_NAME } from '@/lib/config'
 
-// The wiki landing page (shown at "/" when no page is selected): a brief welcome
-// plus the most recently edited pages as quick entry points.
+// The wiki landing page (shown at "/" when no page is selected): a brief welcome,
+// a git-backed activity feed (who changed what), and recently-edited pages.
 export function WikiHome() {
   const { data: docs } = useDocs()
+  const { data: activity } = useActivity()
   const recent = [...(docs ?? [])]
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
     .slice(0, 6)
@@ -23,6 +24,36 @@ export function WikiHome() {
           page from the sidebar, or create one with the + button.
         </p>
       </div>
+
+      {activity && activity.length > 0 && (
+        <div className="mt-10">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Recent activity
+          </h2>
+          <ul className="space-y-1.5">
+            {activity.slice(0, 12).map((a) => {
+              const file = a.files[0]
+              return (
+                <li key={a.rev} className="flex items-start gap-2 text-sm">
+                  <GitCommitHorizontal className="mt-0.5 size-4 shrink-0 text-primary/70" />
+                  <div className="min-w-0">
+                    {file ? (
+                      <Link to={`/?path=${encodeURIComponent(file)}`} className="hover:underline">
+                        {a.message}
+                      </Link>
+                    ) : (
+                      <span>{a.message}</span>
+                    )}
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {a.author} · {new Date(a.date).toLocaleString()}
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
 
       {recent.length > 0 ? (
         <div className="mt-10">

@@ -9,6 +9,7 @@ import {
   listTrash,
   purgeTrash,
   readDoc,
+  recentChanges,
   renameDoc,
   restoreDoc,
   restoreFromTrash,
@@ -44,6 +45,7 @@ const docsRoutes = new Elysia({ prefix: '/api/docs' })
   .get('/backlinks', ({ query }) => ok(backlinks(query.path)), {
     query: t.Object({ path: t.String({ minLength: 1, maxLength: 400 }) }),
   })
+  .get('/activity', () => ok(recentChanges()))
   .get('/diff', ({ query }) => ok({ diff: docDiff(query.path, query.rev) }), {
     query: t.Object({
       path: t.String({ minLength: 1, maxLength: 400 }),
