@@ -1,11 +1,13 @@
-import { LogOut, Settings } from 'lucide-react'
+import { LogOut, Settings, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { PuttyMascot } from '@/components/brand/PuttyMascot'
 import { SettingsDialog } from '@/components/SettingsDialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { WikiNav } from '@/components/wiki/WikiNav'
-import { useLogout, useMe } from '@/hooks/use-auth'
+import { useIsAdmin, useLogout, useMe } from '@/hooks/use-auth'
+import { useSuggestions } from '@/hooks/use-maintenance'
 import { APP_NAME } from '@/lib/config'
 
 // Single full-height left sidebar: brand, the wiki tree (primary navigation),
@@ -33,11 +35,13 @@ function initials(name?: string): string {
 
 function SidebarFooter() {
   const { data: me } = useMe()
+  const isAdmin = useIsAdmin()
   const logout = useLogout()
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <div className="mt-auto shrink-0 border-t border-border p-3">
+      {isAdmin ? <MaintenanceLink /> : null}
       <div className="flex items-center gap-2">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
           {initials(me?.user?.name)}
@@ -55,5 +59,21 @@ function SidebarFooter() {
       </div>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
+  )
+}
+
+// Admin-only entry point to the maintenance review, with an open-count badge.
+function MaintenanceLink() {
+  const { data: open } = useSuggestions({ status: 'open' })
+  const count = open?.length ?? 0
+  return (
+    <Link
+      to="/maintenance"
+      className="mb-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+    >
+      <ShieldCheck className="size-4 shrink-0 opacity-70" />
+      <span className="flex-1">Maintenance</span>
+      {count > 0 ? <Badge variant="secondary">{count}</Badge> : null}
+    </Link>
   )
 }

@@ -1,12 +1,17 @@
 import { createDoc, listDocs } from '../lib/docstore'
 import { isTest } from '../lib/env'
 import { logger } from '../lib/logger'
-import { sqlite } from './index'
+import { db, sqlite } from './index'
 import { runMigrations } from './migrate'
+import { maintenanceConfig } from './schema'
 
 // Idempotent seed — safe to run repeatedly. Run via `bun run db:seed`.
 export function seed(): void {
   runMigrations()
+
+  // Singleton maintenance config (id=1) with safe defaults (disabled until an
+  // admin opts in). onConflictDoNothing keeps this idempotent.
+  db.insert(maintenanceConfig).values({ id: 1 }).onConflictDoNothing().run()
 
   // Sample wiki pages on disk (the source of truth) — only on an empty store,
   // and never during tests (which point DOCS_DIR at a throwaway dir).

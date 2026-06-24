@@ -3,6 +3,7 @@ import adminRoutes from './admin'
 import assistantRoutes from './assistant'
 import authRoutes from './auth'
 import docsRoutes from './docs'
+import maintenanceRoutes from './maintenance'
 import providersRoutes from './providers'
 
 // ── The single place API routes are registered ───────────────────────────
@@ -17,3 +18,4 @@ export const routes = new Elysia()
   .use(assistantRoutes)
   .use(providersRoutes)
   .use(adminRoutes)
+  .use(maintenanceRoutes)

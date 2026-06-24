@@ -1,4 +1,4 @@
-import { FileText } from 'lucide-react'
+import { FileText, ShieldCheck } from 'lucide-react'
 import { type ComponentType, lazy, type LazyExoticComponent } from 'react'
 
 export interface RouteEntry {
@@ -19,4 +19,13 @@ export interface RouteEntry {
 // list and Sidebar.tsx builds the nav from it — they cannot drift. (CLAUDE.md → step 5)
 export const routes: RouteEntry[] = [
   { path: '/', label: 'Wiki', icon: FileText, Component: lazy(() => import('@/pages/WikiPage')) },
+  // Admin-only review page. Routed but kept out of nav; the sidebar shows an
+  // admin-gated link (the page itself also guards on useIsAdmin).
+  {
+    path: '/maintenance',
+    label: 'Maintenance',
+    icon: ShieldCheck,
+    Component: lazy(() => import('@/pages/MaintenancePage')),
+    hidden: true,
+  },
 ]

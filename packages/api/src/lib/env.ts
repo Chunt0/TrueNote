@@ -52,6 +52,11 @@ export const env = {
   /** Provider keys — optional; the Assistant errors clearly if its provider's key is unset. */
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+
+  // ── TrueNote: scheduled maintenance agent ───────────────────────────────
+  /** Master kill-switch for the maintenance scheduler timer ('on' | 'off').
+   * Per-run behavior (enabled, interval, checks) is admin config in SQLite. */
+  MAINTENANCE_SCHEDULER: optional('MAINTENANCE_SCHEDULER', 'on'),
 } as const
 
 export const isProd = env.NODE_ENV === 'production'

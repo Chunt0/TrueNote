@@ -79,7 +79,68 @@ export const llmProviders = sqliteTable('llm_providers', {
     .default(sql`(current_timestamp)`),
 })
 
+// ── Scheduled maintenance agent ──────────────────────────────────────────────
+// A periodic, admin-controlled pass that scans the wiki (.md files on disk) for
+// health problems + drift and files `suggestions`. Config is a singleton row so
+// admins can tune it at runtime (Settings → Maintenance). Like chat history,
+// wiki CONTENT still lives on disk — only the findings/bookkeeping are in SQLite.
+export const maintenanceConfig = sqliteTable('maintenance_config', {
+  id: integer('id').primaryKey(), // singleton: always 1
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  intervalHours: integer('interval_hours').notNull().default(24),
+  staleDays: integer('stale_days').notNull().default(180),
+  maxDocsPerRun: integer('max_docs_per_run').notNull().default(200),
+  maxSuggestions: integer('max_suggestions').notNull().default(100),
+  llmModel: text('llm_model'), // override; null = the active provider's model
+  scopeDepts: text('scope_depts'), // JSON string[] of dept keys; null/[] = all
+  checks: text('checks'), // JSON string[] of enabled check keys; null = all
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`(current_timestamp)`),
+})
+
+// One row per maintenance pass (bookkeeping; serialized — never overlapping).
+export const maintenanceRuns = sqliteTable('maintenance_runs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  trigger: text('trigger').notNull(), // 'schedule' | 'manual'
+  status: text('status').notNull(), // 'running' | 'ok' | 'error' | 'skipped'
+  startedAt: text('started_at')
+    .notNull()
+    .default(sql`(current_timestamp)`),
+  finishedAt: text('finished_at'),
+  scanned: integer('scanned').notNull().default(0),
+  found: integer('found').notNull().default(0), // NEW suggestions filed (post-dedup)
+  error: text('error'),
+})
+
+// A filed maintenance finding an admin reviews. `fingerprint` makes dismissals
+// stick: a re-run won't re-file a finding whose fingerprint is already open/
+// dismissed/snoozed. `check` is stored in the non-reserved column `check_type`.
+export const suggestions = sqliteTable('suggestions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  runId: integer('run_id'),
+  check: text('check_type').notNull(), // broken-link|orphan|stale|stub|naming|llm-quality
+  kind: text('kind').notNull(), // 'content' (apply via reviewed diff) | 'advisory'
+  confidence: text('confidence').notNull(), // 'high' | 'medium' | 'low'
+  title: text('title').notNull(),
+  detail: text('detail').notNull(),
+  path: text('path').notNull(), // primary affected page (relative)
+  department: text('department'),
+  evidence: text('evidence'),
+  fingerprint: text('fingerprint').notNull(),
+  status: text('status').notNull().default('open'), // open|applied|dismissed|snoozed
+  snoozedUntil: text('snoozed_until'),
+  resolvedBy: text('resolved_by'),
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`(current_timestamp)`),
+  resolvedAt: text('resolved_at'),
+})
+
 export type User = typeof users.$inferSelect
 export type Session = typeof sessions.$inferSelect
 export type Department = typeof departments.$inferSelect
 export type LlmProvider = typeof llmProviders.$inferSelect
+export type MaintenanceConfig = typeof maintenanceConfig.$inferSelect
+export type MaintenanceRun = typeof maintenanceRuns.$inferSelect
+export type Suggestion = typeof suggestions.$inferSelect

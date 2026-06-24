@@ -36,6 +36,13 @@
       "when": 1782336970289,
       "tag": "0004_talented_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1782342802722,
+      "tag": "0005_fine_rattler",
+      "breakpoints": true
     }
   ]
 }
