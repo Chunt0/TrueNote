@@ -1,6 +1,6 @@
 # Spec: maintenance (scheduled wiki-maintenance agent)
 
-- **status:** building
+- **status:** done @ 0f3fedc
 - **tests:** packages/api/src/tests/maintenance.test.ts, packages/api/src/tests/checks.test.ts
 - **kind:** feature
 
