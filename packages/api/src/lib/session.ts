@@ -4,9 +4,11 @@
 import { and, eq, gt, lt } from 'drizzle-orm'
 import { db } from '../db'
 import { sessions, users } from '../db/schema'
-import { env, isProd } from './env'
+import { ADMIN_EMAILS, env, isProd } from './env'
 
 export const SESSION_COOKIE = 'tn_session'
+
+export type Role = 'admin' | 'member'
 
 /** A signed-in human. Distinct from the bearer "service" identity in auth.ts. */
 export interface SessionUser {
@@ -14,6 +16,7 @@ export interface SessionUser {
   id: number
   email: string
   name: string
+  role: Role
 }
 
 function randomToken(): string {
@@ -27,19 +30,26 @@ export function upsertUser(input: {
   externalId?: string | null
 }): { id: number; email: string; name: string } {
   const email = input.email.trim().toLowerCase()
+  // Emails in ADMIN_EMAILS are admins; otherwise keep the existing role (members
+  // default to 'member' on create). Admins are never auto-demoted here.
+  const promote = ADMIN_EMAILS.has(email)
   const existing = db.select().from(users).where(eq(users.email, email)).get()
   if (existing) {
-    if (existing.name !== input.name || (input.externalId && existing.externalId !== input.externalId)) {
-      db.update(users)
-        .set({ name: input.name, externalId: input.externalId ?? existing.externalId })
-        .where(eq(users.id, existing.id))
-        .run()
-    }
+    const role = promote ? 'admin' : existing.role
+    db.update(users)
+      .set({ name: input.name, externalId: input.externalId ?? existing.externalId, role })
+      .where(eq(users.id, existing.id))
+      .run()
     return { id: existing.id, email: existing.email, name: input.name }
   }
   const created = db
     .insert(users)
-    .values({ email, name: input.name, externalId: input.externalId ?? null })
+    .values({
+      email,
+      name: input.name,
+      externalId: input.externalId ?? null,
+      role: promote ? 'admin' : 'member',
+    })
     .returning()
     .get()
   return { id: created.id, email: created.email, name: created.name }
@@ -58,12 +68,14 @@ export function userForToken(token: string): SessionUser | null {
   if (!token) return null
   const now = new Date().toISOString()
   const row = db
-    .select({ id: users.id, email: users.email, name: users.name })
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .where(and(eq(sessions.id, token), gt(sessions.expiresAt, now)))
     .get()
-  return row ? { kind: 'user', id: row.id, email: row.email, name: row.name } : null
+  return row
+    ? { kind: 'user', id: row.id, email: row.email, name: row.name, role: row.role === 'admin' ? 'admin' : 'member' }
+    : null
 }
 
 export function destroySession(token: string): void {

@@ -2,7 +2,7 @@ import { asc, eq, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import { llmProviders } from '../db/schema'
-import { authPlugin } from '../lib/auth'
+import { authPlugin, requireAdmin } from '../lib/auth'
 import { NotFoundError } from '../lib/errors'
 import { detectModels, redactProvider } from '../lib/providers'
 import { ok } from '../lib/response'
@@ -11,9 +11,8 @@ import { idParam } from '../lib/schemas'
 const kindSchema = t.Union([t.Literal('anthropic'), t.Literal('openai')])
 
 // Manage LLM provider profiles (the Settings dialog). API keys are accepted on
-// write but NEVER returned — reads expose only `hasKey`. Gated by authPlugin
-// (any authenticated identity, incl. the service token); admin-gating is a
-// future, role-based concern.
+// write but NEVER returned — reads expose only `hasKey`. ADMIN-ONLY (keys are
+// sensitive); the service token also passes.
 const providerBody = t.Object({
   name: t.String({ minLength: 1, maxLength: 80 }),
   kind: kindSchema,
@@ -30,6 +29,7 @@ function clearDefaults() {
 
 const providersRoutes = new Elysia({ prefix: '/api/providers' })
   .use(authPlugin)
+  .onBeforeHandle(({ user }) => requireAdmin(user))
   .get('/', () => {
     const rows = db.select().from(llmProviders).orderBy(asc(llmProviders.id)).all()
     return ok(rows.map(redactProvider))

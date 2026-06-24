@@ -39,6 +39,8 @@ export const env = {
   AUTH_MODE: optional('AUTH_MODE', 'dev'),
   /** Session lifetime in hours (cookie + sessions row). */
   SESSION_TTL_HOURS: Number(optional('SESSION_TTL_HOURS', '720')),
+  /** Comma-separated emails auto-promoted to admin on login (maps to Entra groups later). */
+  ADMIN_EMAILS: optional('ADMIN_EMAILS', ''),
 
   // ── TrueNote: LLM provider seam ─────────────────────────────────────────
   /** 'anthropic' (Claude) | 'openai' (OpenAI-compatible, incl. Ollama). */
@@ -54,6 +56,13 @@ export const env = {
 
 export const isProd = env.NODE_ENV === 'production'
 export const isTest = env.NODE_ENV === 'test'
+
+/** Lowercased set of admin emails (parsed from ADMIN_EMAILS). */
+export const ADMIN_EMAILS = new Set(
+  env.ADMIN_EMAILS.split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+)
 
 // Safety latch: passwordless dev auth must never ship to production.
 if (env.AUTH_MODE === 'dev' && isProd) {

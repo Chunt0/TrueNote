@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia'
+import { accessContext, isAccessible } from '../lib/access'
 import { runAgent } from '../lib/agent'
 import { authPlugin, requireUser } from '../lib/auth'
 import { readDoc } from '../lib/docstore'
@@ -34,11 +35,14 @@ const assistantRoutes = new Elysia({ prefix: '/api/assistant' })
     '/chat',
     async ({ user, body }) => {
       const u = requireUser(user)
+      const ctx = accessContext(user)
       const history: ChatMsg[] = (body.history ?? [])
         .slice(-HISTORY_LIMIT)
         .map((m) => ({ role: m.role, content: m.content }))
-      const contextText = buildContext(body.context)
-      const turn = await runAgent(history, body.message, { name: u.name, email: u.email }, contextText)
+      // Only attach context pages the user may actually access.
+      const allowed = (body.context ?? []).filter((p) => isAccessible(p, ctx))
+      const contextText = buildContext(allowed)
+      const turn = await runAgent(history, body.message, { name: u.name, email: u.email }, contextText, ctx)
       return ok({ reply: turn.reply, toolActivity: turn.toolActivity })
     },
     {

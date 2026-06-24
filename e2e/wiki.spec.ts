@@ -22,6 +22,14 @@ test('signs in and lands on the wiki', async ({ page }) => {
   await expect(page.getByText('Alice', { exact: true })).toBeVisible()
 })
 
+test('signs out and returns to the login screen', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  // The AuthGate flips back to the login screen.
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Wiki' })).toBeHidden()
+})
+
 test('creates a page, renders it, edits via toggle, saves, and deletes', async ({ page }) => {
   await signIn(page)
   const path = `runbooks/e2e-${Date.now()}.md`
@@ -112,4 +120,35 @@ test('settings: add a source (auto-detect models) and switch its model', async (
       return r.data.find((p: { name: string }) => p.name === 'Claude')?.model
     })
     .toBe('claude-sonnet-4-6')
+})
+
+test('settings: an admin can manage the team (create a department)', async ({ page }) => {
+  await signIn(page) // alice@corp.example is in ADMIN_EMAILS → admin
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
+
+  // The admin-only Team section is in the nav.
+  await page.getByRole('button', { name: 'Team' }).click()
+  await expect(page.getByRole('heading', { name: 'Team' })).toBeVisible()
+
+  // Register a department; it appears as a chip.
+  const key = `eng${Date.now()}`
+  await page.getByLabel('key (folder)').fill(key)
+  await page.getByRole('button', { name: 'Add' }).click()
+  await expect(page.getByText(key, { exact: true })).toBeVisible()
+
+  // Alice shows up in the Team user list (scoped to the dialog; her email also
+  // appears in the sidebar).
+  await expect(page.getByRole('dialog').getByText('alice@corp.example')).toBeVisible()
+})
+
+test('settings: a member sees neither AI Providers nor Team', async ({ page }) => {
+  await signIn(page, 'bob@corp.example', 'Bob') // not in ADMIN_EMAILS → member
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
+
+  // Member-visible sections only; the admin-only ones are filtered out.
+  await expect(page.getByRole('button', { name: 'Appearance' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'AI Providers' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Team' })).toHaveCount(0)
 })

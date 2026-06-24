@@ -11,8 +11,10 @@ One-page index of every wired capability. If it's here, don't rebuild it.
 | Auto-typed API surface for the client (`export type App`) | `app.ts` |
 | Route registration (single barrel) | `routes/index.ts` |
 | Fail-fast env validation | `lib/env.ts` |
-| Auth gate (Mode C sessions + service bearer fallback) | `lib/auth.ts` |
-| Sessions + users (cookie, upsert, provider-agnostic) | `lib/session.ts` |
+| Auth gate (Mode C sessions + service bearer fallback) + `requireAdmin` | `lib/auth.ts` |
+| Sessions + users (cookie, upsert, role, `ADMIN_EMAILS` promotion) | `lib/session.ts` |
+| Department access control (member scoping, admin/service = all) | `lib/access.ts` |
+| Admin API (users: role + departments; department registry CRUD) | `routes/admin.ts` |
 | Auth provider endpoints (dev login/logout; Entra stub) | `routes/auth.ts` |
 | Wiki file store — `.md` on disk: path safety, atomic writes, OCC, git, fuzzy search, history/restore, trash, backlinks | `lib/docstore.ts` |
 | Wiki doc API (CRUD + search + history/diff/restore + trash + backlinks) | `routes/docs.ts` |
@@ -39,10 +41,11 @@ One-page index of every wired capability. If it's here, don't rebuild it.
 |------------|------|
 | Entry + providers + auth gate | `main.tsx`, `App.tsx` |
 | Eden Treaty client (type-safe, cookie session) + `unwrap()` | `lib/api.ts` |
-| Auth hooks (me / dev login / logout) | `hooks/use-auth.ts` |
+| Auth hooks (me / dev login / logout / `useIsAdmin`) | `hooks/use-auth.ts` |
+| Admin hooks (users + departments) | `hooks/use-admin.ts` |
 | Wiki data hooks (list/read/search/CRUD) | `hooks/use-docs.ts` |
 | Dockable Assistant panel (chat + page-context bar) + hook | `components/assistant/`, `hooks/use-assistant.ts` |
-| Settings (registry-driven sections: providers/appearance/account/about) | `components/SettingsDialog.tsx`, `components/settings/` |
+| Settings (registry-driven sections; `adminOnly` hidden from members: providers/team/appearance/account/about) | `components/SettingsDialog.tsx`, `components/settings/` |
 | Provider hooks | `hooks/use-providers.ts` |
 | Wiki page (two-pane: section tree + rendered/edit) | `pages/WikiPage.tsx` |
 | Wiki components (OneNote-style tree, page view/edit pane) | `components/wiki/` |

@@ -2,6 +2,7 @@
 // over the file store (lib/docstore.ts). Tools are thin wrappers over the same
 // service the UI uses — confined to DOCS_DIR, attributed to the signed-in user
 // (git authorship), and OCC-respecting (edits require the version from read_doc).
+import { type AccessCtx, filterAccessible, isAccessible } from './access'
 import type { Author } from './docstore'
 import {
   createDoc,
@@ -10,6 +11,7 @@ import {
   readDoc,
   renameDoc,
   searchDocs,
+  slugifyPath,
   updateDoc,
 } from './docstore'
 import { type ChatMsg, makeClient, type ToolCall, type ToolDef } from './llm'
@@ -195,25 +197,43 @@ export function fixCitationLinks(md: string): string {
   })
 }
 
-function executeTool(call: ToolCall, author: Author): string {
+// Tools are scoped to the requesting user's access: a member's agent can only
+// see/edit pages in their departments (admins/system see all).
+function executeTool(call: ToolCall, author: Author, ctx: AccessCtx): string {
+  const denied = 'Error: you do not have access to that page'
   try {
     switch (call.name) {
       case 'search_docs':
-        return JSON.stringify(searchDocs(str(call.args.query)))
+        return JSON.stringify(filterAccessible(searchDocs(str(call.args.query)), (h) => h.path, ctx))
       case 'list_docs':
-        return JSON.stringify(listDocs())
-      case 'read_doc':
-        return JSON.stringify(readDoc(str(call.args.path)))
-      case 'create_doc':
-        return JSON.stringify(createDoc(str(call.args.path), stripEmojis(str(call.args.content)), author))
-      case 'update_doc':
+        return JSON.stringify(filterAccessible(listDocs(), (d) => d.path, ctx))
+      case 'read_doc': {
+        const p = str(call.args.path)
+        return isAccessible(p, ctx) ? JSON.stringify(readDoc(p)) : denied
+      }
+      case 'create_doc': {
+        const p = slugifyPath(str(call.args.path))
+        if (!isAccessible(p, ctx)) return denied
+        return JSON.stringify(createDoc(p, stripEmojis(str(call.args.content)), author))
+      }
+      case 'update_doc': {
+        const p = str(call.args.path)
+        if (!isAccessible(p, ctx)) return denied
         return JSON.stringify(
-          updateDoc(str(call.args.path), stripEmojis(str(call.args.content)), str(call.args.version), author),
+          updateDoc(p, stripEmojis(str(call.args.content)), str(call.args.version), author),
         )
-      case 'rename_doc':
-        return JSON.stringify(renameDoc(str(call.args.from), str(call.args.to), author))
-      case 'delete_doc':
-        return JSON.stringify(deleteDoc(str(call.args.path), author))
+      }
+      case 'rename_doc': {
+        const from = str(call.args.from)
+        const to = str(call.args.to)
+        if (!isAccessible(from, ctx) || !isAccessible(slugifyPath(to), ctx)) return denied
+        return JSON.stringify(renameDoc(from, to, author))
+      }
+      case 'delete_doc': {
+        const p = str(call.args.path)
+        if (!isAccessible(p, ctx)) return denied
+        return JSON.stringify(deleteDoc(p, author))
+      }
       default:
         return `Error: unknown tool "${call.name}"`
     }
@@ -238,7 +258,8 @@ export async function runAgent(
   history: ChatMsg[],
   userMessage: string,
   author: Author,
-  contextText = '',
+  contextText: string,
+  ctx: AccessCtx,
 ): Promise<AgentTurn> {
   const client = makeClient(resolveActiveProvider())
   // Attached wiki pages (from the panel's context bar) are injected as primary
@@ -250,7 +271,7 @@ export async function runAgent(
 
   let result: AgentTurn
   try {
-    result = await runToolLoop(client, system, messages, author)
+    result = await runToolLoop(client, system, messages, author, ctx)
   } catch (err) {
     // Many models (e.g. Gemma, smaller local models) don't support tool calling,
     // so the tool-enabled call errors. Fall back to a plain reply so the user
@@ -276,6 +297,7 @@ async function runToolLoop(
   system: string,
   initialMessages: ChatMsg[],
   author: Author,
+  ctx: AccessCtx,
 ): Promise<AgentTurn> {
   const messages = [...initialMessages]
   const toolActivity: ToolActivity[] = []
@@ -287,7 +309,7 @@ async function runToolLoop(
     }
     messages.push({ role: 'assistant', content: reply.text, toolCalls: reply.toolCalls })
     for (const call of reply.toolCalls) {
-      const result = executeTool(call, author)
+      const result = executeTool(call, author, ctx)
       toolActivity.push({ name: call.name, args: call.args, result: result.slice(0, 2000) })
       messages.push({ role: 'tool', content: result, toolCallId: call.id })
     }

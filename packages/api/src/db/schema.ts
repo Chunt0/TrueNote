@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 
 // ── TrueNote tables ────────────────────────────────────────────────────────
@@ -15,10 +15,35 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
   externalId: text('external_id'), // OIDC subject/oid; null for dev users
+  role: text('role').notNull().default('member'), // 'admin' | 'member'
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`),
 })
+
+// Departments = access-controlled top-level wiki folders. `key` is the folder
+// name (kebab). Pages outside any registered department are shared to all members.
+export const departments = sqliteTable('departments', {
+  key: text('key').primaryKey(),
+  label: text('label').notNull(),
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`(current_timestamp)`),
+})
+
+// Which departments a member may access (admins see all, so they need no rows).
+export const userDepartments = sqliteTable(
+  'user_departments',
+  {
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    deptKey: text('dept_key')
+      .notNull()
+      .references(() => departments.key),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.userId, t.deptKey] }) }),
+)
 
 // Opaque cookie session ids → user. Server-side so they can expire/revoke.
 export const sessions = sqliteTable('sessions', {
@@ -56,4 +81,5 @@ export const llmProviders = sqliteTable('llm_providers', {
 
 export type User = typeof users.$inferSelect
 export type Session = typeof sessions.$inferSelect
+export type Department = typeof departments.$inferSelect
 export type LlmProvider = typeof llmProviders.$inferSelect

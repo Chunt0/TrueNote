@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { Elysia } from 'elysia'
 import { env } from './env'
-import { UnauthorizedError } from './errors'
+import { ForbiddenError, UnauthorizedError } from './errors'
 import { parseCookies, SESSION_COOKIE, type SessionUser, userForToken } from './session'
 
 // ── Auth: Mode C (per-user sessions) + a service bearer token ────────────────
@@ -72,4 +72,11 @@ export const authPlugin = new Elysia({ name: 'auth' }).derive(
 export function requireUser(user: User): SessionUser {
   if (user?.kind === 'user') return user
   throw new UnauthorizedError('Sign in to use this feature')
+}
+
+/** Admin-only routes. The service bearer token counts as admin (system). */
+export function requireAdmin(user: User): void {
+  if (!user) throw new UnauthorizedError()
+  if (user.kind === 'service' || user.role === 'admin') return
+  throw new ForbiddenError('Admin access required')
 }

@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import adminRoutes from './admin'
 import assistantRoutes from './assistant'
 import authRoutes from './auth'
 import docsRoutes from './docs'
@@ -15,3 +16,4 @@ export const routes = new Elysia()
   .use(docsRoutes)
   .use(assistantRoutes)
   .use(providersRoutes)
+  .use(adminRoutes)
