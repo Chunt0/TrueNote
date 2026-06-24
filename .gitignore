@@ -1,0 +1,30 @@
+node_modules/
+dist/
+build/
+coverage/
+
+# data & backups (live next to the app, never in git)
+data/
+backups/
+*.db
+*.db-shm
+*.db-wal
+
+# env (commit .env.example only)
+.env
+.env.local
+.env.*.local
+
+# playwright e2e artifacts
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# vendored reference project (local pattern/UX reference, not part of TrueNote)
+REFERENCE/
+
+# misc
+.DS_Store
+*.log
+last-session.txt

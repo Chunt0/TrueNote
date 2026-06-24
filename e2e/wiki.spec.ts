@@ -1,0 +1,115 @@
+import { expect, type Page, test } from '@playwright/test'
+
+// Each test starts with a fresh browser context (no cookie), so sign in first.
+async function signIn(page: Page, email = 'alice@corp.example', name = 'Alice') {
+  await page.goto('/')
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Display name').fill(name)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByRole('heading', { name: 'Wiki' })).toBeVisible()
+}
+
+async function newPage(page: Page, path: string) {
+  await page.getByRole('button', { name: /new page/i }).click()
+  await page.getByLabel('Path').fill(path)
+  await page.getByRole('button', { name: 'Create' }).click()
+}
+
+test('signs in and lands on the wiki', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+  await signIn(page)
+  await expect(page.getByText('Alice', { exact: true })).toBeVisible()
+})
+
+test('creates a page, renders it, edits via toggle, saves, and deletes', async ({ page }) => {
+  await signIn(page)
+  const path = `runbooks/e2e-${Date.now()}.md`
+  const title = path.split('/').pop()!.replace('.md', '')
+
+  await newPage(page, path)
+
+  // Lands on the page in READ mode (rendered Markdown + an Edit button).
+  await expect(page.getByRole('button', { name: /^edit$/i })).toBeVisible()
+  // The page shows up in the left section tree under its folder.
+  await expect(page.getByRole('button', { name: title })).toBeVisible()
+
+  // Toggle to edit, change content, save → back to rendered view.
+  await page.getByRole('button', { name: /^edit$/i }).click()
+  const editor = page.getByPlaceholder('Write Markdown…')
+  await expect(editor).toBeVisible()
+  await editor.fill('# Deploy runbook\n\nStep 1: ship it.')
+  await page.getByRole('button', { name: /save/i }).click()
+  await expect(page.getByText('Saved')).toBeVisible()
+  // Rendered (not the textarea): the prose paragraph is visible, editor is gone.
+  await expect(editor).toBeHidden()
+  await expect(page.getByText('Step 1: ship it.')).toBeVisible()
+
+  // Delete (→ trash).
+  await page.getByRole('button', { name: 'Delete page' }).click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.getByText('Page moved to trash')).toBeVisible()
+})
+
+test('optimistic concurrency: a stale save is rejected with a reload prompt', async ({ page }) => {
+  await signIn(page)
+  const path = `occ/e2e-${Date.now()}.md`
+  await newPage(page, path)
+
+  await page.getByRole('button', { name: /^edit$/i }).click()
+  const editor = page.getByPlaceholder('Write Markdown…')
+  await expect(editor).toBeVisible()
+
+  // Another writer changes the file out-of-band (page.request shares the cookie).
+  const read = await (await page.request.get(`/api/docs/read?path=${encodeURIComponent(path)}`)).json()
+  await page.request.put('/api/docs', {
+    data: { path, content: '# changed by someone else', version: read.data.version },
+  })
+
+  // Our save now uses a stale version → 409 → reload prompt.
+  await editor.fill('# my local edit')
+  await page.getByRole('button', { name: /save/i }).click()
+  await expect(page.getByText(/changed on disk/i)).toBeVisible()
+})
+
+test('assistant: dock from the top-right and round-trip a reply', async ({ page }) => {
+  test.setTimeout(60_000) // a live LLM round-trip
+  await signIn(page)
+
+  // Open the dockable panel from the top-right toggle.
+  await page.getByRole('button', { name: 'Toggle assistant' }).click()
+  await expect(page.getByText(/included as context/i)).toBeVisible()
+
+  // Send a message and expect a rendered Markdown reply bubble (.md-rendered).
+  // If no LLM key is configured the bubble is a graceful "⚠️ …" error — either
+  // way the request reached the backend and the reply rendered.
+  await page.getByPlaceholder('Ask the wiki assistant…').fill('Say hello in five words.')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.md-rendered').first()).toBeVisible({ timeout: 45_000 })
+})
+
+test('settings: add a source (auto-detect models) and switch its model', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'AI Providers' })).toBeVisible()
+
+  // Add a source and auto-detect its models (Anthropic w/o key → fallback list).
+  await page.getByRole('button', { name: /add source/i }).click()
+  await page.getByLabel('Name').fill('Claude')
+  await page.getByRole('button', { name: /detect models/i }).click()
+  await expect(page.getByText('claude-opus-4-8')).toBeVisible() // detected + auto-selected
+  await page.getByRole('button', { name: 'Add source' }).click() // footer save
+  await expect(page.getByText('Claude', { exact: true })).toBeVisible()
+  await expect(page.getByText('Active', { exact: true })).toBeVisible()
+
+  // Switch the model inline on the card and confirm via the API.
+  await page.getByRole('combobox').click()
+  await page.getByRole('option', { name: 'claude-sonnet-4-6' }).click()
+  await expect
+    .poll(async () => {
+      const r = await (await page.request.get('/api/providers')).json()
+      return r.data.find((p: { name: string }) => p.name === 'Claude')?.model
+    })
+    .toBe('claude-sonnet-4-6')
+})
