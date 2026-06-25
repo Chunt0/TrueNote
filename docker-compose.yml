@@ -35,7 +35,9 @@ services:
       ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - app-data:/data
-
-volumes:
-  app-data:
+      # Bind-mount the repo's ./data so the wiki (./data/wiki) and DB
+      # (./data/app.db) are real files in the repo — same as `bun run dev`.
+      # The container's `bun` user is uid 1000, matching the host, so it's
+      # read/write with no extra config. (Run dev OR docker, not both at once,
+      # since they'd share the same SQLite file + wiki git repo.)
+      - ./data:/data

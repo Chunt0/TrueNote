@@ -98,8 +98,13 @@ scripts/init-project.sh myapp
 docker compose up -d --build          # http://<host>:3000
 ```
 
-- Data lives in the `app-data` Docker volume (`/data/app.db`). Logs → stdout
-  (`docker compose logs -f`).
+- Data is **bind-mounted from the repo's `./data`** (compose maps `./data:/data`):
+  SQLite at `./data/app.db`, the wiki as real files at `./data/wiki` (git repo) —
+  the same paths `bun run dev` uses, so the container and dev share one source of
+  truth (run one at a time). The container's `bun` user is uid 1000, matching the
+  host, so the bind mount is read/write. Logs → stdout (`docker compose logs -f`).
+  (For a deployment where data should live outside the repo, point the host side
+  of that mount elsewhere, e.g. `/srv/truenote/data:/data`.)
 - `./scripts/backup.sh` writes a gzipped `VACUUM INTO` snapshot to `backups/`
   (cron: `0 3 * * * cd /opt/myapp && ./scripts/backup.sh`). Keep `backups/` on a
   different disk or rclone it off-box.

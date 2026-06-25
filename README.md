@@ -102,8 +102,11 @@ bun run db:seed      # idempotent
 
 ## Deploying & exposing
 
-`docker compose up -d --build` runs everything on `:3000`. Data (SQLite + the wiki
-git repo) lives in a Docker volume; logs go to stdout. To reach it from other
+`docker compose up -d --build` runs everything on `:3000`. Data lives in the
+repo's **`./data`** (bind-mounted): the SQLite DB at `./data/app.db` and the wiki
+as real `.md` files at `./data/wiki` — the same files `bun run dev` uses, so you
+can browse/edit them on disk or in git. (Run dev *or* Docker, not both at once —
+they share that DB + wiki repo.) Logs go to stdout. To reach it from other
 devices, put Tailscale / Caddy / Cloudflare Tunnel in front — and **run the
 pre-expose checklist** in `docs/ARCHITECTURE.md` (auth tested, secrets out of git,
 Swagger off, `AUTH_MODE` not `dev` in production, a backup restored) first.
