@@ -51,8 +51,9 @@ follow the spec?" stops being a judgment call and becomes `bun run check`.
    columns + types, exact response shape — near-copyable, not described.
 2. **An explicit "Out of scope" list.** Bounds the agent; stops gold-plating
    (the #1 way agents drift).
-3. **A "Reference" pointer to copy.** "Mirror `routes/announcements.ts`" is the
-   highest-fidelity instruction you can give.
+3. **A "Reference" pointer to copy.** "Mirror `routes/maintenance.ts`" (or
+   whichever existing feature matches — see CLAUDE.md → "Existing features to
+   copy") is the highest-fidelity instruction you can give.
 4. **Self-checkable Acceptance.** If the agent can run the tests, it
    self-corrects toward the spec instead of declaring victory early.
 
@@ -73,5 +74,5 @@ follow the spec?" stops being a judgment call and becomes `bun run check`.
 - every spec marked `done` carries a commit stamp and its `tests:` file(s)
   exist.
 
-Specs with `kind: reference` or `kind: archive` are skipped (the reference one
-is removed by `bun run eject:reference`).
+Specs with `kind: archive` are skipped (e.g. `SEED_SPEC.md`); `SPEC_TEMPLATE.md`
+and this README are skipped by name. Worked example to copy: `maintenance.md`.

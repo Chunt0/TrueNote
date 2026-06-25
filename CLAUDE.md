@@ -1,15 +1,18 @@
 # CLAUDE.md
 
-Guidance for building features into this template. Read this first, every session.
+Guidance for building features into **TrueNote** (an in-house IT-department wiki).
+Read this first, every session. Project overview: `README.md`.
 
 ## What this is
 
-A wiring-only full-stack template: **one Bun process** serves an Elysia API *and*
-the built React SPA (same-origin, no CORS, no nginx). Type-safe end to end via
-Eden Treaty. SQLite + Drizzle. One Docker image, one `docker compose`.
+A file-backed wiki on a wiring-only full-stack base: **one Bun process** serves an
+Elysia API *and* the built React SPA (same-origin, no CORS, no nginx). Type-safe
+end to end via Eden Treaty. **Wiki pages are `.md` files on disk + git**; SQLite
+holds only non-note data (users/sessions/providers/maintenance). One Docker image,
+one `docker compose`.
 
 The architecture decisions are already made. Your job is to add features by
-**copying the reference feature's shape**, not by inventing new patterns.
+**copying an existing feature's shape** (below), not by inventing new patterns.
 
 ## Starting a new project
 
@@ -24,7 +27,7 @@ brief and just build.
 | When | Read |
 |------|------|
 | Always | This file |
-| Starting a project | `PROJECT_BRIEF.md` (the filled brief), then the reference feature (below) |
+| Orienting / what exists | `README.md`, `WIRED.md`, then an existing feature (below) |
 | Specifying a feature | `specs/README.md`, then `specs/SPEC_TEMPLATE.md` |
 | Writing UI | `docs/DESIGN_SYSTEM.md` |
 | Logging / adding log calls | `docs/LOGGING.md` |
@@ -43,22 +46,25 @@ data model / API contract / acceptance criteria, then implement it. A spec is
 the input to one run of the build sequence below; its **Acceptance** list maps
 1:1 onto the test file, so "did I follow the spec" becomes `bun run check`. Mark
 it `done @ <commit>` when green — the drift guard (`tests/specs.test.ts`) keeps
-done specs honest. Worked example: `specs/announcements.md`. Full rationale:
+done specs honest. Worked example: `specs/maintenance.md`. Full rationale:
 `specs/README.md`.
 
-## The reference feature (the golden path — copy it)
+## Existing features to copy (the golden paths)
 
-`announcements` (+ a `categories` relation) is a complete vertical slice. Read it
-in this order, then mirror it for your own resources:
+The original `announcements` reference feature has been ejected. Mirror whichever
+real slice matches your task:
 
-1. `packages/api/src/db/schema.ts` — tables
-2. `packages/api/src/routes/announcements.ts` — GET/POST/DELETE, validated, enveloped
-3. `packages/api/src/routes/index.ts` — where routes are registered
-4. `packages/frontend/src/hooks/use-announcements.ts` — query/mutation hooks + key factory
-5. `packages/frontend/src/pages/AnnouncementsPage.tsx` — the CRUD page archetype
-6. `packages/frontend/src/routes.manifest.ts` — the one line that adds route + nav
-
-Remove it with **`bun run eject:reference`** once your first feature replaces it.
+- **A SQLite-backed, admin-gated resource (full vertical slice):** `maintenance`
+  — `db/schema.ts` (tables) → `routes/maintenance.ts` (validated, enveloped,
+  `requireAdmin`) → `routes/index.ts` (registration) → `hooks/use-maintenance.ts`
+  (query/mutation hooks + key factory) → `pages/MaintenancePage.tsx` →
+  `routes.manifest.ts` (route + admin nav) → `tests/maintenance.test.ts`. Spec:
+  `specs/maintenance.md`.
+- **Admin/users/departments CRUD:** `routes/admin.ts` + `hooks/use-admin.ts`.
+- **The file-backed wiki path (NOT SQLite rows):** `lib/docstore.ts` (the `.md`
+  store) → `routes/docs.ts` → `hooks/use-docs.ts` → `pages/WikiPage.tsx`.
+- **Department access control:** `lib/access.ts`, enforced in `routes/docs.ts`,
+  `lib/agent.ts`, and admin routes.
 
 ## Build sequence (per resource)
 
@@ -92,14 +98,18 @@ fails the build), so "follow them" is mechanical, not just etiquette.
   Derive entity types from the API (`Payload<typeof api.x.get>`), never a
   hand-written `interface` that can drift from the route.
 - **Soft delete:** a table with a `deletedAt` column is hidden, not removed —
-  **every** read of it must filter `isNull(table.deletedAt)` (see the reference
-  route). This one is a convention, not a gate: a static check is too brittle, so
-  it's on you to keep — forget it and you leak deleted rows.
+  **every** read of it must filter `isNull(table.deletedAt)`. (Wiki pages use a
+  different soft-delete: move to `${DOCS_DIR}/.trash/`, filtered on every read.)
+  This is a convention, not a gate — forget it and you leak deleted rows.
 - **Routes:** API routes register in `routes/index.ts`; pages register in
   `routes.manifest.ts`. One place each — *except* a new **public** API route,
   which also needs its path added to `PUBLIC_API_PATHS` in `lib/auth.ts` (else
   it's auth-gated by default).
-- **Auth:** `lib/auth.ts` (Mode B shared bearer). `user` is on the context.
+- **Auth & access:** `lib/auth.ts` (Mode C: per-user sessions + service bearer);
+  `user` is on the context. Admin routes call `requireAdmin(user)`. Reads/writes
+  of wiki pages must be scoped through `lib/access.ts` (department access) — see
+  `routes/docs.ts`. A new admin-only page goes in `routes.manifest.ts` (`hidden`)
+  with an admin-gated sidebar link + a `useIsAdmin()` guard on the page.
 - **Docs:** `WIRED.md` must point only at files that exist *(gated)*.
 
 ## Definition of done
@@ -113,10 +123,14 @@ Keep docs aligned with what you built — treat drift as a build failure.
 
 ## Don't add
 
-Error trackers, a second datastore, a job queue, a users table/RBAC, CORS, a
-runtime config endpoint, or a second frontend framework — unless you've outgrown
-the template (see `docs/ARCHITECTURE.md` → Escape hatches). Every dependency is a
-maintenance cost; justify it.
+Error trackers, a second datastore, a job queue, CORS, or a second frontend
+framework — unless you've outgrown the base (see `docs/ARCHITECTURE.md` → Escape
+hatches). Every dependency is a maintenance cost; justify it.
+
+(Already added deliberately, with justification — extend these, don't reinvent: a
+`users` table + roles/department access; an admin-tunable maintenance config
+[runtime config, admin-gated]; an in-process scheduler. Chat history stays
+client-side; never add a server-side chat-history store.)
 
 ## Commands
 

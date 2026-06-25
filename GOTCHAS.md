@@ -12,7 +12,7 @@ The sharp edges. Skim on clone; revisit `[deploy]` ones before exposing the app.
 | G6 | `/docs` (Swagger) is live whenever `ENABLE_SWAGGER=true`. Turn it off before exposing the app. | `[deploy]` |
 | G7 | The gitleaks pre-commit hook needs the `gitleaks` binary on PATH. Remove that block in `.lefthook.yml` if you don't want it. | `[setup]` |
 | G8 | Dialogs/sheets need a `DialogTitle` + `DialogDescription` (use `sr-only` when decorative). `FormDialog`/`ConfirmDialog` handle this for you. | `[extend]` |
-| G9 | `VITE_AUTH_TOKEN` ships in the SPA bundle **by design** (Mode B). Never put any other secret behind a `VITE_` prefix. | `[extend]` |
+| G9 | Auth is **Mode C**: the SPA uses signed-cookie sessions, so **no token is baked into the bundle**. The service `AUTH_TOKEN` is server-side only (programmatic/system use). Never put a secret behind a `VITE_` prefix — those ship to the browser. | `[extend]` |
 | G10 | API routes register in `routes/index.ts`; pages register in `routes.manifest.ts`. It's an explicit chain (not a glob) so Eden Treaty can infer the API as a static type — add the line when you add a resource. | `[extend]` |
 | G11 | Keep the `@elysiajs/*` packages on the same minor as `elysia` (Eden's types track Elysia). | `[extend]` |
 | G12 | Dev runs the API on `:4000` and Vite on `:3000` (Vite proxies `/api`). Production is a single Bun process on `:3000`. Don't set `PORT` in `.env`. | `[dev]` |

@@ -19,13 +19,15 @@ One sentence: what this resource is for and who uses it.
 
 ## Reference
 
-Mirror the shape of the reference feature, with the deltas below:
+Mirror the shape of an existing feature (CLAUDE.md → "Existing features to copy"),
+with the deltas below. Common picks:
 
-- API: `routes/announcements.ts` + `routes/categories.ts`
-- Hook: `hooks/use-announcements.ts`
-- Page: `pages/AnnouncementsPage.tsx`
+- A SQLite-backed admin resource: `routes/maintenance.ts` + `hooks/use-maintenance.ts`
+  + `pages/MaintenancePage.tsx` (or `routes/admin.ts`).
+- The file-backed wiki path: `lib/docstore.ts` + `routes/docs.ts` + `hooks/use-docs.ts`.
 - Conventions inherited (do **not** restate): response envelope (`ok()` /
-  `AppError`), `lib/env.ts`, auth Mode B, `lib/pagination.ts`, `lib/schemas.ts`.
+  `AppError`), `lib/env.ts`, auth Mode C (`lib/auth.ts` + `requireAdmin`),
+  department access (`lib/access.ts`), `lib/pagination.ts`, `lib/schemas.ts`.
 
 ## Data model  → `db/schema.ts` (then `bun run db:generate`)
 

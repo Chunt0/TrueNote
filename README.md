@@ -1,164 +1,109 @@
-# Full-Stack Template
+# TrueNote
 
-**A wiring-only full-stack template you build *into*, not *from scratch*.** The
-architecture is decided, the primitives are built, and a complete reference
-feature shows the golden path. Clone it, write a one-page brief, and ship
-features into an already-wired skeleton — with an AI agent or by hand.
+**An in-house wiki for an IT department.** Markdown pages are stored as plain
+**files on disk** (git-versioned), edited collaboratively in the browser with
+per-user attribution, and reachable by a built-in **LLM assistant** that works on
+the same files through a small, fixed set of tools.
 
 > **One Bun process** serves the Elysia API **and** the React SPA — same-origin,
-> no CORS, no nginx. Type-safe end to end with **zero codegen**. SQLite-backed.
-> One Docker image, one `docker compose up`.
+> no CORS, no nginx. Type-safe end to end with **zero codegen**. SQLite holds only
+> non-note data; the wiki itself is `.md` files. One Docker image, one
+> `docker compose up`.
 
-`Bun` · `Elysia` · `React 19` · `SQLite + Drizzle` · `Tailwind v4` · `Docker`
+`Bun` · `Elysia` · `React 19` · `SQLite + Drizzle` · `Tailwind v4` · `git` · `Docker`
 
----
-
-## Look & feel
-
-Skinned with the **putty-ai** design system — an ink canvas, Inter + Fira Code,
-borders over shadows, and **coral as the interactive accent** (buttons, links,
-focus, active nav). Ships **18 runtime-switchable themes** (putty mono + light,
-Ocean, Midnight, Claude, Terminal, Cute…) selectable from the top-bar palette;
-the whole shadcn/Radix primitive library re-skins from `data-theme` CSS tokens —
-no component changes.
-
-| Home (dark) | Reference CRUD page (dark) |
-|---|---|
-| ![Home — putty-ai dark](docs/screenshots/home-dark.png) | ![Announcements CRUD page](docs/screenshots/announcements-dark.png) |
-
-| Home (Putty Light) |
-|---|
-| ![Home — putty light](docs/screenshots/home-light.png) |
+Built ~20 users, single internal team, behind the company network/VPN.
 
 ---
 
-## Why this exists
+## What it does
 
-Most "starters" hand you a pile of dependencies and a blank `App.tsx`. You still
-spend the first week deciding how errors, auth, validation, data fetching,
-routing, and deploys fit together — and re-litigating it on every feature.
+- **File-backed wiki.** Every page is a real `.md` file under `DOCS_DIR`; folders
+  are sections. The path *is* the page's identity, so the wiki is navigable and
+  editable in the app, in an editor, in git, or in Obsidian. SQLite never stores
+  note content — **deleting the DB never loses a page.**
+- **Browser editing with safe concurrency.** Open → click-to-edit → save. Saves
+  are atomic and guarded by an optimistic-concurrency version token (a stale save
+  gets a **409** + reload prompt, never a silent overwrite).
+- **git-backed history.** `DOCS_DIR` is a git repo; every save is a commit
+  **authored as the signed-in user**. Per-page history + diff + one-click restore.
+- **Wikilinks & search.** `[[page]]` links + backlinks, and fast token search over
+  filenames *and* content with typo tolerance + highlighting.
+- **LLM assistant.** A dockable chat panel where an agent searches/reads/creates/
+  edits pages through a fixed tool set (confined to `DOCS_DIR`, OCC-respecting,
+  git-committed). Provider-pluggable: Claude or any OpenAI-compatible endpoint
+  (incl. local Ollama). Chat history is **client-side only** (localStorage).
+- **Roles & department access.** `admin` / `member`; a **department** is a
+  registered top-level folder. Members see only their granted departments plus
+  shared (root) pages; admins and the service token see everything.
+- **Scheduled maintenance agent (admin, off by default).** Periodically scans for
+  health problems (broken links, orphans, stale/stub pages, naming) and drift, and
+  files suggestions an admin reviews. It never edits a page on its own — every fix
+  is an admin-reviewed diff.
+- **Audit log (admin).** The full git change history — who/what/when with commit
+  hashes — fully searchable and traceable to each page.
+- **Mobile-friendly.** Responsive: the nav becomes a drawer, the assistant a
+  full-screen overlay, dialogs stack.
 
-This template makes those decisions **once** and **enforces them with the
-compiler**, so every feature is the same boring, copy-the-reference shape:
+## Auth — Mode C (per-user login), pluggable provider
 
-- **End-to-end types, no codegen.** The frontend imports the API's *type*; the
-  whole request/response surface is inferred. Change a route, the caller stops
-  compiling.
-- **One response shape, enforced.** Every handler returns `ok(data)` or throws a
-  typed `AppError`; a bare object won't type-check.
-- **One place for each thing.** Routes register in one barrel, pages in one
-  manifest — nav and router can't drift.
+One auth seam, env-selected provider (`AUTH_MODE`), so dev is frictionless and
+production is Microsoft Entra with no rearchitecture:
 
-### Is it for you?
-
-| Great fit | Look elsewhere |
-|-----------|----------------|
-| Self-hosted apps, internal tools, side projects | Multi-tenant SaaS out of the box |
-| Single user or a small trusted team | Large teams needing RBAC / SSO on day one |
-| You want type safety + low ops | You want a kitchen-sink framework |
-
-It's deliberately **narrow**: SQLite, single-process, shared-bearer auth. Those
-are features for the target, and documented escape hatches (Postgres, a separate
-service, real multi-user) for when you outgrow them. See `docs/ARCHITECTURE.md`.
-
-## The end-to-end type safety, concretely
-
-```ts
-// API — packages/api/src/routes/announcements.ts
-export default new Elysia({ prefix: '/api/announcements' })
-  .get('/', ({ query }) => ok(rows, pageMeta(...)), { query: paginationQuery })
-
-// packages/api/src/app.ts
-export type App = typeof app                  // the whole API surface, no codegen
-```
-
-```ts
-// Frontend — packages/frontend/src/hooks/use-announcements.ts
-const data = await unwrap<Announcement[]>(
-  api.announcements.get({ query: { limit: 50 } }),  // path, query, body all typed
-)  // ▲ rename the route or change its params, and THIS line stops compiling
-```
+- **`dev` (now, local only).** Passwordless pick-a-user login. **Refuses to run
+  under `NODE_ENV=production`** so it can never ship by accident.
+- **`entra` (production, planned).** Microsoft Entra ID OIDC — see the `entra`
+  branch. Slots in as another provider: same sessions, same `users` table, same
+  attribution.
+- **Service bearer token** (`AUTH_TOKEN`) for programmatic/system use; counts as
+  admin. The SPA uses signed-cookie sessions (no token in the bundle).
+- **Admins** are bootstrapped via `ADMIN_EMAILS` (comma-separated; promoted on
+  login). Later this maps to Entra groups.
 
 ## Quickstart
 
 ```bash
-scripts/init-project.sh "My App"   # writes .env (token + name), installs, migrates, seeds
+scripts/init-project.sh "TrueNote"   # writes .env (token + name), installs, migrates, seeds
 
-bun run dev                        # API :4000 + Vite :3000 (HMR)
+bun run dev                          # API :4000 + Vite :3000 (HMR)
 # …or the containerized stack, mirroring production:
-docker compose up -d --build       # http://localhost:3000
+docker compose up -d --build         # http://localhost:3000
 ```
 
-Open the app, click into **Announcements** — that's the reference feature, a full
-vertical slice (table → API → hook → page → nav). Read it, copy its shape, then
-`bun run eject:reference` once your own features replace it.
-
-## How you build a feature
-
-1. **Brief** — fill in `PROJECT_BRIEF.md` (one page: what it does, entities,
-   pages, what's out of scope). Hand it to Claude: *"Build this per CLAUDE.md."*
-2. **Spec** (anything non-trivial) — `cp specs/SPEC_TEMPLATE.md specs/<resource>.md`
-   and pin the exact data model, API contract, and acceptance criteria. A spec is
-   an agent-followable plan whose **Acceptance** list maps 1:1 onto its tests —
-   so "did the agent follow it?" becomes `bun run check`. See `specs/README.md`.
-3. **Build** — the six-step sequence (schema → route → hook → page → nav →
-   tests), each step mirroring the reference. Full detail in `CLAUDE.md`.
-4. **Gate** — `bun run check` (type-check + lint + test) must be green.
-
-## What's already wired
-
-**Backend** — response envelope + typed errors · fail-fast env validation · auth
-gate (shared bearer) · pagination helpers · reusable validators · Pino logging ·
-correlation IDs · SQLite (WAL) with migrations-on-boot + idempotent seed ·
-security headers · health/whoami endpoints · optional Swagger.
-
-**Frontend** — type-safe API client (`api.*` + `unwrap`) · TanStack Query setup ·
-manifest-driven router + sidebar · UI primitives (Radix + CVA) · CRUD patterns
-(`DataTable` / `FormDialog` / `ConfirmDialog`) · loading/empty/error states ·
-18-theme switcher · error boundary.
-
-**Ops** — single multi-stage Docker image · `docker compose` · backup/restore
-scripts · pre-commit hooks · spec drift-guard test.
-
-Full index: `WIRED.md`.
+Then set yourself up as an admin: add `ADMIN_EMAILS=you@corp.example` to `.env`,
+restart, and sign in with that email.
 
 ## Everyday commands
 
 ```bash
-bun run check            # type-check + lint + test — the gate
-bun run dev              # local dev with HMR
-bun run db:generate      # after editing packages/api/src/db/schema.ts
-bun run db:migrate       # apply migrations (also runs on API boot)
-bun run db:seed          # idempotent seed
-bun run eject:reference  # remove the example feature when you're ready
-./scripts/backup.sh      # gzipped SQLite snapshot (cron-friendly)
+bun run check        # type-check + lint + test — the gate
+bun run dev          # local dev with HMR (API :4000 + Vite :3000)
+bun run e2e          # Playwright against the built SPA + API
+bun run db:generate  # after editing packages/api/src/db/schema.ts
+bun run db:migrate   # apply migrations (also runs on API boot)
+bun run db:seed      # idempotent
+./scripts/backup.sh  # gzipped SQLite snapshot (cron-friendly)
 ```
 
 ## Project map
 
 | Path | What |
 |------|------|
-| `packages/api` | Bun + Elysia API (serves the SPA in production too) |
-| `packages/frontend` | React SPA |
+| `packages/api` | Bun + Elysia API; serves the SPA in production; owns the wiki file store + git |
+| `packages/frontend` | React SPA (wiki, assistant, admin pages) |
+| `data/wiki` | the wiki's `.md` files (git repo) — gitignored, the source of truth |
 | `CLAUDE.md` | **Start here to build** — build sequence + enforced conventions |
-| `PROJECT_BRIEF.md` | The one-page brief you fill in for a new app |
-| `specs/` | Feature-spec workflow (template, worked example, the method) |
-| `docs/ARCHITECTURE.md` | Topology, decisions, deploy, escape hatches |
+| `PROJECT_BRIEF.md` | the project's one-page *what* |
+| `specs/` | feature-spec workflow (template, worked example `maintenance.md`, the method) |
+| `docs/ARCHITECTURE.md` | topology, decisions, auth, env, deploy, escape hatches |
 | `docs/DESIGN_SYSTEM.md` | UI primitives + page archetypes |
-| `WIRED.md` | One-page index of every wired capability |
-| `GOTCHAS.md` | The sharp edges (skim on clone) |
-
-## Auth
-
-Ships **Mode B** — a shared bearer token in `.env`, baked into the SPA bundle.
-It stops opportunistic scanning, not credential theft (the bundle is only served
-where the token already reaches). `docs/ARCHITECTURE.md` covers **Mode A** (none,
-LAN-only) and **Mode C** (login + signed cookie, ~60 lines).
+| `WIRED.md` | one-page index of every wired capability |
+| `GOTCHAS.md` | the sharp edges (skim on clone) |
 
 ## Deploying & exposing
 
-`docker compose up -d --build` runs everything on `:3000`. Data lives in a Docker
-volume; logs go to stdout. To reach it from other devices, put Tailscale / Caddy
-/ Cloudflare Tunnel in front — and **run the pre-expose checklist** in
-`docs/ARCHITECTURE.md` (auth tested, secrets out of git, Swagger off, backup
-restored) before exposing it anywhere.
+`docker compose up -d --build` runs everything on `:3000`. Data (SQLite + the wiki
+git repo) lives in a Docker volume; logs go to stdout. To reach it from other
+devices, put Tailscale / Caddy / Cloudflare Tunnel in front — and **run the
+pre-expose checklist** in `docs/ARCHITECTURE.md` (auth tested, secrets out of git,
+Swagger off, `AUTH_MODE` not `dev` in production, a backup restored) first.

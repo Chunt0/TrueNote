@@ -42,8 +42,8 @@ message a short constant string.
 
 ## Correlation: trace one request end to end
 
-Every response carries an `x-request-id` header (set in `app.ts` `onRequest`,
-exposed as `requestId` on the handler context by `lib/correlation.ts`). That same
+Every response carries an `x-request-id` header (set in `app.ts` `onRequest` and
+exposed as `requestId` on the handler context there). That same
 id is attached to error logs **and** returned in the error envelope
 (`error.requestId`). To trace a request, grep its id:
 
@@ -93,7 +93,7 @@ you copy the existing shape instead of inventing one:
 - **Access log (one line per request).** Add an `onAfterResponse` in `app.ts` that
   logs `method`, `path`, `status`, duration, and `requestId`. Capture a start time
   in `onRequest`. This is the highest-value addition if you need request visibility.
-- **Per-request child logger.** In `lib/correlation.ts`, also derive
+- **Per-request child logger.** In `app.ts`'s `onRequest` derive, also expose
   `log: logger.child({ requestId })` so handlers call `log.info('...')` without
   passing `requestId` every time.
 - **Ship frontend errors to the server.** Add an `/api/client-logs` route that

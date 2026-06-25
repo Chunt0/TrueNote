@@ -25,9 +25,9 @@ classes.
 
 `ThemeProvider` sets `data-theme="<key>"` on `<html>` (persisted to
 `localStorage`, applied pre-paint by an inline script in `index.html` to avoid
-flash) and toggles `.dark` for dark-canvas themes. The 18 built-in themes live
-in `lib/themes.ts` (mirrors `putty-ai-design/themes.ts`); the `TopBar` palette
-menu switches between them live. `useTheme()` exposes `{ theme, setTheme,
+flash) and toggles `.dark` for dark-canvas themes. The built-in themes live
+in `lib/themes.ts`; switch between them in **Settings → Appearance**.
+`useTheme()` exposes `{ theme, setTheme,
 resolvedTheme }` — `resolvedTheme` ('light'|'dark') is for theme-aware widgets
 like sonner. To add a theme: add its `[data-theme]` block to `tailwind.css` and
 one row to `lib/themes.ts`.
@@ -57,16 +57,20 @@ ad-hoc spinners. `DataTable` wires all three for you.
 
 ## Layout (`components/layout/`)
 
-`AppShell` (Sidebar + `<Outlet/>`, no top bar) · `Sidebar` (brand, primary nav,
-the wiki tree `WikiNav`, and user/settings/sign-out pinned to the bottom) ·
-`PageHeader` (title + description + actions) · `ThemeProvider`. Theme switching
-lives in Settings → Appearance.
+`AppShell` (Sidebar + a slim top bar with the Assistant toggle + `<Outlet/>`) ·
+`Sidebar` (brand, the wiki tree `WikiNav`, admin links, and user/settings/sign-out
+pinned to the bottom) · `PageHeader` (title + description + actions) ·
+`ThemeProvider`. **Responsive:** on mobile the sidebar is an off-canvas drawer (a
+hamburger in the top bar) and the Assistant is a full-screen overlay. Theme
+switching lives in Settings → Appearance.
 
 ## Archetypes
 
 **CRUD page** = `PageHeader` (with a "New" action) + `DataTable` + `FormDialog`
-(create/edit) + `ConfirmDialog` (delete). The reference `AnnouncementsPage.tsx`
-*is* this archetype — copy it. Toasts via `toast.success/error`.
+(create/edit) + `ConfirmDialog` (delete). Toasts via `toast.success/error`.
+For real list/admin-page examples, see `pages/MaintenancePage.tsx` and
+`pages/AuditPage.tsx` (filters + pagination); for a form-in-dialog, the settings
+sections under `components/settings/`.
 
 **Detail / form page** = `PageHeader` + `Card`s + `Input`/`Select`/`Textarea`
 with `Label`s.

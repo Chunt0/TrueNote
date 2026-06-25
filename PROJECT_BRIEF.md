@@ -1,7 +1,12 @@
 # PROJECT_BRIEF
 
-Fill this in, then hand it to Claude: **"Build this per CLAUDE.md."** Describe
-*what the app does* — not *how* to build it (the template already decided that).
+The project's *what*. This is the original brief; the app has since grown past it.
+
+> **Status (built beyond this brief):** Mode C auth (dev provider; Entra planned on
+> the `entra` branch) · **roles (admin/member) + department-scoped page access** ·
+> a **scheduled maintenance agent** (admin, off by default) · an admin **audit log**
+> · mobile-responsive UI. The "out of scope" notes in §9 about RBAC and scheduled
+> agents are therefore superseded. Current state of record: `README.md` + `WIRED.md`.
 
 ## 1. One-liner
 
@@ -20,12 +25,13 @@ operate on the same files through a small, fixed set of tools.
 
 ## 3. Auth & attribution — Mode C (per-user login), pluggable provider
 
-> ⚠️ Escape hatch, not a config flip. The template ships **Mode B** only
-> (`lib/auth.ts` hardcodes one user). Mode C is documented under "when you
-> outgrow a default" — a deliberate, supported addition we must build.
+> ✅ **Built.** Mode C is shipped: per-user sessions (cookie) via an env-selected
+> provider, plus a service bearer token. The **`dev`** provider works now; the
+> **`entra`** provider is the `entra` branch's job. Roles (admin/member) and
+> department access were added on top — see §9.
 
-Build **one auth seam, env-selected provider** (`AUTH_MODE` in `lib/env.ts`), so
-dev is frictionless and production is **Microsoft Entra** with no rearchitecture:
+One auth seam, env-selected provider (`AUTH_MODE` in `lib/env.ts`), so dev is
+frictionless and production is **Microsoft Entra** with no rearchitecture:
 
 - **`dev` provider (now, for local dev).** A trivial login — pick / type a
   name+email (or auto-login a seeded dev user), no passwords. Easy day-to-day
@@ -132,15 +138,17 @@ copy code — and NOT its storage (it's DB-backed for docs; TrueNote is file-bac
 - No semantic/embedding search or RAG (plain grep is enough). A rebuildable
   SQLite FTS/backlink index is allowed *only if* grep gets slow.
 - No inline AI editing UX (select-and-rewrite, suggestions) — a later add.
-- No autonomous/background or scheduled agent runs — the agent acts only when
-  asked in the Assistant.
 - No agent tools beyond the docs dir (no shell, arbitrary filesystem, web, email,
   calendar — Odysseus has these; TrueNote deliberately does not).
-- No real-time collaborative (Google-Docs-style) co-editing, rich-text WYSIWYG,
-  uploads, or fine-grained per-page permissions (everyone on the team can
-  read/write the whole wiki). Revisit RBAC only if the team asks.
+- No real-time collaborative (Google-Docs-style) co-editing, rich-text WYSIWYG, or
+  uploads.
+
+> Superseded since this brief: a **scheduled maintenance agent** now runs on an
+> interval (admin-controlled, off by default; only the interactive Assistant edits
+> on demand), and **per-page-ish access exists** via roles + department folders
+> (members are scoped; admins see all). RBAC arrived because the team asked.
 
 ---
 
-When done building: `bun run check` green, `bun run eject:reference` run, docs
-updated to match what you built.
+When building: keep `bun run check` (and `bun run e2e`) green, and keep the docs
+(`README.md`, `WIRED.md`, this brief) aligned with what you built.
