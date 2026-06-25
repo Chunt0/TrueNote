@@ -152,3 +152,45 @@ test('settings: a member sees neither AI Providers nor Team', async ({ page }) =
   await expect(page.getByRole('button', { name: 'AI Providers' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Team' })).toHaveCount(0)
 })
+
+test.describe('mobile', () => {
+  test.use({ viewport: { width: 375, height: 667 } })
+
+  test('nav is a drawer: hamburger opens it, selecting a page closes it', async ({ page }) => {
+    await signIn(page)
+    const title = `mobile-e2e-${Date.now()}`
+    const path = `${title}.md` // root-level so the tree shows it without expanding a folder
+
+    // Create a page via the drawer (it must be opened to reach "New page").
+    // Use the exact header button — folder-hover "New page in <x>" buttons also
+    // match a loose name.
+    await page.getByRole('button', { name: 'Open navigation' }).click()
+    await page.getByRole('button', { name: 'New page', exact: true }).click()
+    await page.getByLabel('Path').fill(path)
+    await page.getByRole('button', { name: 'Create' }).click()
+    // Creating navigates to the page, which closes the drawer.
+    await expect(page.getByRole('button', { name: 'Close navigation' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^edit$/i })).toBeVisible()
+
+    // Open the drawer again, pick the page from the tree → drawer closes.
+    await page.getByRole('button', { name: 'Open navigation' }).click()
+    await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible()
+    await page.getByRole('button', { name: title }).click()
+    await expect(page.getByRole('button', { name: 'Close navigation' })).toHaveCount(0)
+
+    // No horizontal overflow at phone width.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1,
+    )
+    expect(overflow).toBe(false)
+  })
+
+  test('assistant opens as a full-screen overlay (no maximize button)', async ({ page }) => {
+    await signIn(page)
+    await page.getByRole('button', { name: 'Toggle assistant' }).click()
+    await expect(page.getByText(/included as context/i)).toBeVisible()
+    // Maximize is desktop-only; the panel is already full-screen on mobile.
+    await expect(page.getByRole('button', { name: /maximize/i })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Close assistant' })).toBeVisible()
+  })
+})

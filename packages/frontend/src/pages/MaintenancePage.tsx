@@ -117,7 +117,7 @@ export default function MaintenancePage() {
   return (
     <div className="flex h-full flex-col">
       {/* Fixed header + filters */}
-      <header className="shrink-0 border-b border-border px-6 py-4">
+      <header className="shrink-0 border-b border-border px-4 py-4 sm:px-6">
         <div className="mx-auto flex max-w-4xl flex-col gap-3">
           <div className="flex items-center gap-3">
             <div className="flex-1">
@@ -168,7 +168,7 @@ export default function MaintenancePage() {
       </header>
 
       {/* Scrollable body */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="mx-auto max-w-4xl">
           {isLoading ? (
             <LoadingState />
@@ -230,10 +230,10 @@ export default function MaintenancePage() {
             <DialogDescription>{diff?.sug.detail}</DialogDescription>
           </DialogHeader>
           {diff ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-1">
                 <span className="text-xs font-medium text-muted-foreground">Current</span>
-                <pre className="h-72 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-2 text-xs">
+                <pre className="h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-2 text-xs md:h-72">
                   {diff.current}
                 </pre>
               </div>
@@ -242,7 +242,7 @@ export default function MaintenancePage() {
                 <Textarea
                   value={diff.proposed}
                   onChange={(e) => setDiff({ ...diff, proposed: e.target.value })}
-                  className="h-72 font-mono text-xs"
+                  className="h-56 font-mono text-xs md:h-72"
                 />
               </div>
             </div>

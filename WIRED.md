@@ -63,7 +63,7 @@ One-page index of every wired capability. If it's here, don't rebuild it.
 | UI primitives (Radix + CVA) | `components/ui/` |
 | Feedback states (Loading / Empty / Error) | `components/feedback/` |
 | Patterns (DataTable / FormDialog / ConfirmDialog) | `components/patterns/` |
-| Layout — sidebar owns nav (wiki tree) + user/settings/logout; no top bar | `components/layout/` |
+| Layout — sidebar (wiki tree + user/settings/logout) + slim top bar; responsive: mobile drawer (hamburger) + full-screen assistant overlay | `components/layout/` |
 | Error boundary | `components/ErrorBoundary.tsx` |
 | Standard pages (Home / NotFound / RouteError) | `pages/` |
 

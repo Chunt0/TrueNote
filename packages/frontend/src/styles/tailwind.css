@@ -406,6 +406,11 @@
   background: var(--bg2);
   padding: 0.15em 0.4em;
   border-radius: 4px;
+  /* Break long unbroken tokens (URLs, ids) so they don't overflow on mobile. */
+  overflow-wrap: anywhere;
+}
+.md-rendered a {
+  overflow-wrap: anywhere;
 }
 .md-rendered pre {
   background: var(--surface-3, var(--panel2));
@@ -436,6 +441,10 @@
   margin: 0.9em 0;
   width: 100%;
   font-size: 0.9rem;
+  /* Wide tables scroll within the page instead of forcing horizontal overflow. */
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 .md-rendered th,
 .md-rendered td {

@@ -124,9 +124,9 @@ export function DocPane({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 flex items-start justify-between gap-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2 sm:gap-4">
         <div className="min-w-0 space-y-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{doc.title}</h1>
+          <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{doc.title}</h1>
           <p className="truncate font-mono text-xs text-muted-foreground">{doc.path}</p>
           <p className="truncate text-xs text-muted-foreground">
             {doc.lastEdit
@@ -181,13 +181,14 @@ export function DocPane({
           <div className="flex items-center gap-2">
             <Input
               aria-label="Page path"
-              className="max-w-md font-mono text-xs"
+              className="min-w-0 flex-1 max-w-md font-mono text-xs"
               value={newPath}
               onChange={(e) => setNewPath(e.target.value)}
             />
             <Button
               variant="outline"
               size="sm"
+              className="shrink-0"
               onClick={handleRename}
               disabled={newPath === doc.path || rename.isPending}
             >

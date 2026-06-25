@@ -81,9 +81,9 @@ export function HistoryDialog({
           <DialogTitle>Page history</DialogTitle>
           <DialogDescription className="truncate font-mono text-xs">{path}</DialogDescription>
         </DialogHeader>
-        <div className="flex h-[500px]">
+        <div className="flex h-[80vh] flex-col md:h-[500px] md:flex-row">
           {/* Versions list */}
-          <div className="w-64 shrink-0 overflow-y-auto border-r border-border p-2">
+          <div className="max-h-44 w-full shrink-0 overflow-y-auto border-b border-border p-2 md:max-h-none md:w-64 md:border-b-0 md:border-r">
             {isLoading ? (
               <p className="p-2 text-sm text-muted-foreground">Loading…</p>
             ) : history && history.length > 0 ? (

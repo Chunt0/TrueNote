@@ -124,7 +124,7 @@ export function AssistantPanel({
           <Button
             size="icon"
             variant="ghost"
-            className="size-7"
+            className="hidden size-7 md:inline-flex"
             aria-label={maximized ? 'Restore' : 'Maximize'}
             onClick={onToggleMax}
           >

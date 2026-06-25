@@ -15,7 +15,7 @@ export function WikiHome() {
     .slice(0, 6)
 
   return (
-    <div className="mx-auto max-w-3xl py-10">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
       <div className="flex flex-col items-center text-center">
         <PuttyMascot size={48} glow />
         <h1 className="mt-3 text-2xl font-semibold lowercase tracking-tight">{APP_NAME}</h1>

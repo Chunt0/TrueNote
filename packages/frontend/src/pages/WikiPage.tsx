@@ -18,7 +18,7 @@ export default function WikiPage() {
   }
 
   return (
-    <div className="h-full p-6">
+    <div className="h-full p-4 sm:p-6">
       <DocPane
         key={selected}
         path={selected}
