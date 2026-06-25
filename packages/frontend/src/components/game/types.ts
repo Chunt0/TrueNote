@@ -30,6 +30,8 @@ export interface GameState {
   player: Player
   cam: { x: number; shake: number }
   furthestX: number; lastTop: number; segCount: number
+  lastChunkId: string; chunksSinceBreather: number
+  threatX: number // the advancing "Devourer" world-x; caught if player falls behind it
   score: number; distance: number; combo: number; over: boolean; best: number
   coyote: number; wallCoyote: number; buffer: number
   accent: string; accentLight: string

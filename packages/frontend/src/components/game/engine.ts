@@ -2,12 +2,12 @@
 // Pure logic (no canvas/DOM); the React wrapper drives step(dt, input) and a
 // renderer reads the returned state. P1 uses random generation (genTo); P2 swaps
 // in the chunk-based level grammar.
+import { type ChunkCtx, CHUNKS, pickChunk } from './chunks'
 import { BEST_KEY, PHYS } from './constants'
 import type { GameState, Input, Player, Rect } from './types'
 
 const { PW, PH } = PHYS
 const rand = (a: number, b: number) => a + Math.random() * (b - a)
-const randint = (a: number, b: number) => Math.floor(rand(a, b + 1))
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 
@@ -24,6 +24,7 @@ export function createGame(accent: string, accentLight: string): Game {
     player: blankPlayer(),
     cam: { x: 0, shake: 0 },
     furthestX: 0, lastTop: 0, segCount: 0,
+    lastChunkId: '', chunksSinceBreather: 0, threatX: -300,
     score: 0, distance: 0, combo: 0, over: false,
     best: Number(localStorage.getItem(BEST_KEY) || 0),
     coyote: 0, wallCoyote: 0, buffer: 0,
@@ -50,26 +51,28 @@ export function createGame(accent: string, accentLight: string): Game {
     }
   }
 
-  // Temporary random generation (replaced by chunks in P2).
-  function genTo(targetX: number) {
+  // Stitch fair, escalating chunks (chunks.ts) up to targetX. Each chunk starts
+  // at the running groundY (state.lastTop) and returns its width + new exitY.
+  function genChunks(targetX: number) {
     const H = state.H
     while (state.furthestX < targetX) {
-      if (state.segCount > 2 && Math.random() < 0.16) state.furthestX += rand(70, 150)
-      const w = rand(170, 360)
-      const step = [0, 0, 50, 90][randint(0, 3)] * (Math.random() < 0.5 ? -1 : 1)
-      state.lastTop = clamp(state.lastTop + step, H * 0.42, H * 0.82)
-      const top = state.lastTop
-      const x = state.furthestX
-      state.platforms.push({ x, y: top, w, h: H - top + 260, ground: true })
-      const n = randint(0, 4)
-      for (let i = 0; i < n; i++) state.coins.push({ x: x + 36 + i * 34, y: top - 48 - Math.sin((i / Math.max(n - 1, 1)) * Math.PI) * 40, taken: false, phase: Math.random() * 6 })
-      if (Math.random() < 0.3 && w > 200) {
-        const fx = x + rand(20, w - 120), fy = top - rand(95, 155)
-        state.platforms.push({ x: fx, y: fy, w: rand(70, 120), h: 18, ground: false })
-        for (let i = 0; i < 3; i++) state.coins.push({ x: fx + 18 + i * 26, y: fy - 30, taken: false, phase: Math.random() * 6 })
+      const chunk = state.chunksSinceBreather >= 4
+        ? CHUNKS.find((k) => k.id === 'breather')!
+        : pickChunk(state.distance, Math.random, state.lastChunkId)
+      const x0 = state.furthestX
+      const ctx: ChunkCtx = {
+        x0, groundY: state.lastTop, H, rng: Math.random,
+        plat: (x, y, w) => state.platforms.push({ x, y, w, h: H - y + 260, ground: true }),
+        float: (x, y, w) => state.platforms.push({ x, y, w, h: 16, ground: false }),
+        wall: (x, y, w, h) => state.platforms.push({ x, y, w, h, ground: false }),
+        coin: (x, y) => state.coins.push({ x, y, taken: false, phase: Math.random() * 6 }),
+        enemy: (x, y, minX, maxX) => state.enemies.push({ x, y, w: 32, h: 30, vx: rand(52, 92) * (Math.random() < 0.5 ? -1 : 1), minX, maxX, dead: false, blink: rand(1, 4), wob: Math.random() * 6 }),
       }
-      if (state.segCount > 2 && Math.random() < 0.5 && w > 170) state.enemies.push({ x: x + w / 2, y: top - 30, w: 32, h: 30, vx: rand(50, 92) * (Math.random() < 0.5 ? -1 : 1), minX: x + 8, maxX: x + w - 8, dead: false, blink: rand(1, 4), wob: Math.random() * 6 })
-      state.furthestX = x + w
+      const { width, exitY } = chunk.build(ctx)
+      state.furthestX = x0 + width
+      state.lastTop = clamp(exitY, H * 0.4, H * 0.82)
+      state.lastChunkId = chunk.id
+      state.chunksSinceBreather = chunk.id === 'breather' ? 0 : state.chunksSinceBreather + 1
       state.segCount++
     }
   }
@@ -78,11 +81,13 @@ export function createGame(accent: string, accentLight: string): Game {
     const H = state.H
     state.platforms = []; state.coins = []; state.enemies = []; state.particles = []; state.popups = []
     state.furthestX = 0; state.segCount = 0; state.lastTop = H * 0.7; state.cam.x = 0; state.cam.shake = 0
+    state.lastChunkId = ''; state.chunksSinceBreather = 0; state.threatX = -320
     state.score = 0; state.distance = 0; state.combo = 0; state.over = false
     state.coyote = 0; state.wallCoyote = 0; state.buffer = 0
-    state.platforms.push({ x: 0, y: state.lastTop, w: 440, h: H - state.lastTop + 260, ground: true })
-    state.furthestX = 440; state.segCount = 3
-    genTo(state.W * 1.6)
+    // A long, safe, enemy-free start so the player gets their footing.
+    state.platforms.push({ x: 0, y: state.lastTop, w: 540, h: H - state.lastTop + 260, ground: true })
+    state.furthestX = 540
+    genChunks(state.W * 1.6)
     const p = blankPlayer()
     p.x = 96; p.y = state.lastTop - PH; p.onGround = true; p.prevBottom = state.lastTop; p.blink = rand(2, 5)
     state.player = p
@@ -201,7 +206,13 @@ export function createGame(accent: string, accentLight: string): Game {
     s.distance = Math.max(s.distance, Math.floor(p.x / 48))
     const targetCam = clamp(p.x - W * 0.34 + p.face * 56, 0, Infinity)
     s.cam.x += (targetCam - s.cam.x) * Math.min(1, dt * 6)
-    genTo(s.cam.x + W + 460)
+    genChunks(s.cam.x + W + 460)
+
+    // The Devourer creeps forward (faster with distance); caught = game over.
+    const tSpeed = 60 + Math.min(s.distance * 0.16, 150)
+    s.threatX += tSpeed * dt
+    s.threatX = Math.max(s.threatX, s.cam.x - W * 1.3) // never lurk more than ~1.3 screens back
+    if (p.x + PW < s.threatX) { spawn(p.x + PW / 2, p.y + PH / 2, 10, '#c34de6', { spread: 160, up: 160 }); endGame() }
     const cut = s.cam.x - 220
     s.platforms = s.platforms.filter((pl) => pl.x + pl.w > cut)
     s.coins = s.coins.filter((c) => c.x > cut && !c.taken)

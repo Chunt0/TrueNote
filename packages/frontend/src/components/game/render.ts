@@ -61,6 +61,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
   for (const u of s.popups) { ctx.globalAlpha = clamp(u.life / 0.8, 0, 1); ctx.fillStyle = C.orb; ctx.fillText(u.text, u.x, u.y) }
   ctx.globalAlpha = 1
   ctx.restore()
+  drawThreat(ctx, s)
   drawBubbles(ctx, s, true)
 
   // Vignette.
@@ -84,6 +85,27 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
     ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = '700 38px ui-sans-serif, system-ui, sans-serif'; ctx.fillText('Game Over', W / 2, H / 2 - 24)
     ctx.font = '16px ui-sans-serif, system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(`${s.score} orbs · ${s.distance}m   (best ${s.best})`, W / 2, H / 2 + 6)
     ctx.fillStyle = accent; ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText('Press Space or tap to play again', W / 2, H / 2 + 38)
+  }
+}
+
+// The advancing "Devourer" — a wall of alien void/goo creeping from the left.
+function drawThreat(ctx: CanvasRenderingContext2D, s: GameState) {
+  const sx = s.threatX - s.cam.x
+  if (sx < -30) return
+  const w = Math.max(0, sx)
+  const edge = (yStep: number) => { ctx.moveTo(w, -2); for (let y = 0; y <= s.H; y += yStep) ctx.lineTo(w + Math.sin(s.time * 5 + y * 0.06) * 12 + Math.sin(s.time * 9 + y * 0.13) * 5, y) }
+  const g = ctx.createLinearGradient(0, 0, Math.max(sx, 1), 0)
+  g.addColorStop(0, 'rgba(35,8,52,0.97)'); g.addColorStop(0.7, 'rgba(90,20,120,0.82)'); g.addColorStop(1, 'rgba(170,50,200,0.45)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, s.H)
+  ctx.fillStyle = 'rgba(200,90,235,0.9)'; ctx.beginPath(); edge(20); ctx.lineTo(0, s.H); ctx.lineTo(0, -2); ctx.closePath(); ctx.fill()
+  ctx.save(); ctx.shadowColor = '#d36bff'; ctx.shadowBlur = 22; ctx.strokeStyle = 'rgba(235,160,255,0.55)'; ctx.lineWidth = 3; ctx.beginPath(); edge(20); ctx.stroke(); ctx.restore()
+  // Danger glow when it's closing in on the player.
+  const prox = s.player.x - s.threatX
+  if (prox < s.W * 0.55 && !s.over) {
+    const dg = ctx.createLinearGradient(0, 0, s.W * 0.5, 0)
+    const a = 0.18 + 0.12 * Math.sin(s.time * 8)
+    dg.addColorStop(0, `rgba(210,60,150,${a})`); dg.addColorStop(1, 'rgba(210,60,150,0)')
+    ctx.fillStyle = dg; ctx.fillRect(0, 0, s.W * 0.5, s.H)
   }
 }
 
