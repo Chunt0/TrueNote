@@ -4,7 +4,8 @@
 import { and, eq, gt, lt } from 'drizzle-orm'
 import { db } from '../db'
 import { sessions, users } from '../db/schema'
-import { ADMIN_EMAILS, env, isProd } from './env'
+import { ADMIN_EMAILS, env } from './env'
+import { ConflictError } from './errors'
 
 export const SESSION_COOKIE = 'tn_session'
 
@@ -53,6 +54,58 @@ export function upsertUser(input: {
     .returning()
     .get()
   return { id: created.id, email: created.email, name: created.name }
+}
+
+// ── Email + password provider (local accounts) ───────────────────────────────
+// Passwords are hashed with Bun.password (argon2id) — no external dependency.
+// Self-service: anyone who can reach the instance can register (local use). The
+// display name defaults to the email's local part; users set a real one in
+// Settings → Account.
+
+/** Create a new local account. Throws if the email is taken. */
+export async function createPasswordUser(input: {
+  email: string
+  password: string
+  name?: string
+}): Promise<SessionUser> {
+  const email = input.email.trim().toLowerCase()
+  if (db.select({ id: users.id }).from(users).where(eq(users.email, email)).get()) {
+    throw new ConflictError('An account with that email already exists')
+  }
+  const name = input.name?.trim() || email.split('@')[0]
+  const passwordHash = await Bun.password.hash(input.password)
+  const role: Role = ADMIN_EMAILS.has(email) ? 'admin' : 'member'
+  const created = db.insert(users).values({ email, name, passwordHash, role }).returning().get()
+  return { kind: 'user', id: created.id, email: created.email, name: created.name, role }
+}
+
+/** Verify email + password; null if no such account / wrong password / no password set. */
+export async function verifyCredentials(input: {
+  email: string
+  password: string
+}): Promise<SessionUser | null> {
+  const email = input.email.trim().toLowerCase()
+  const row = db.select().from(users).where(eq(users.email, email)).get()
+  if (!row?.passwordHash) return null
+  if (!(await Bun.password.verify(input.password, row.passwordHash))) return null
+  // Keep admin promotion in sync with ADMIN_EMAILS (never auto-demote).
+  let role: Role = row.role === 'admin' ? 'admin' : 'member'
+  if (role !== 'admin' && ADMIN_EMAILS.has(email)) {
+    db.update(users).set({ role: 'admin' }).where(eq(users.id, row.id)).run()
+    role = 'admin'
+  }
+  return { kind: 'user', id: row.id, email: row.email, name: row.name, role }
+}
+
+/** Update the signed-in user's display name (Settings → Account). */
+export function updateUserName(userId: number, name: string): SessionUser {
+  db.update(users).set({ name: name.trim() }).where(eq(users.id, userId)).run()
+  const row = db
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get()!
+  return { kind: 'user', id: row.id, email: row.email, name: row.name, role: row.role === 'admin' ? 'admin' : 'member' }
 }
 
 /** Open a session for a user; returns the opaque token + expiry. */
@@ -108,12 +161,12 @@ export function sessionCookie(token: string, expiresAt: Date): string {
     'SameSite=Lax',
     `Expires=${expiresAt.toUTCString()}`,
   ]
-  if (isProd) attrs.push('Secure')
+  if (env.COOKIE_SECURE) attrs.push('Secure')
   return attrs.join('; ')
 }
 
 export function clearedCookie(): string {
   const attrs = [`${SESSION_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0']
-  if (isProd) attrs.push('Secure')
+  if (env.COOKIE_SECURE) attrs.push('Secure')
   return attrs.join('; ')
 }

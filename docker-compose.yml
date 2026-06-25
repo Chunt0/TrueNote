@@ -3,17 +3,35 @@ services:
     build:
       context: .
       args:
-        # The SPA is same-origin (empty URL) and bakes in the shared token + name.
+        # The SPA is same-origin (empty URL). Auth is Mode C (cookies) — no token
+        # is baked into the bundle.
         VITE_API_URL: ""
-        VITE_AUTH_TOKEN: ${AUTH_TOKEN}
-        VITE_APP_NAME: ${VITE_APP_NAME:-App}
+        VITE_APP_NAME: ${VITE_APP_NAME:-TrueNote}
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
       DATABASE_PATH: /data/app.db
+      # Wiki files + git history (persisted in the volume).
+      DOCS_DIR: /data/wiki
+      GIT_VERSIONING: ${GIT_VERSIONING:-on}
+      # Auth: local email + password accounts. Admins from ADMIN_EMAILS.
+      AUTH_MODE: ${AUTH_MODE:-password}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-720}
+      # Leave OFF for plain http on a LAN/VPN; set true only behind HTTPS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Service bearer (programmatic/system); not used by the browser.
       AUTH_TOKEN: ${AUTH_TOKEN}
+      # Scheduled maintenance agent (off until an admin enables it in Settings).
+      MAINTENANCE_SCHEDULER: ${MAINTENANCE_SCHEDULER:-on}
+      # Assistant LLM (optional — also configurable per-provider in Settings).
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-6}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ENABLE_SWAGGER: ${ENABLE_SWAGGER:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:

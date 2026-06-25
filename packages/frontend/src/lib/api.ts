@@ -7,8 +7,8 @@ import type { App } from '@app/api'
 const origin = import.meta.env.VITE_API_URL || window.location.origin
 
 // Auth is Mode C: the browser authenticates with the httpOnly session cookie set
-// by /api/auth/dev/login (same-origin, so it rides along automatically). We send
-// credentials explicitly so it also works through the dev Vite proxy.
+// at login (/api/auth/login | /register), same-origin, so it rides along
+// automatically. We send credentials explicitly so it also works via the dev proxy.
 // `.api` roots the client at /api so calls read as api.docs.get(), etc.
 export const api = treaty<App>(origin, {
   fetch: { credentials: 'include' },

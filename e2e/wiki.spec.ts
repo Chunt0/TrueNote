@@ -1,11 +1,13 @@
 import { expect, type Page, test } from '@playwright/test'
 
 // Each test starts with a fresh browser context (no cookie), so sign in first.
-async function signIn(page: Page, email = 'alice@corp.example', name = 'Alice') {
+// The DB persists across tests in a run, so register the account once then log
+// in on later calls. Done via the API (page.request shares the context cookies)
+// so most tests don't re-exercise the login UI — that's covered by its own test.
+async function signIn(page: Page, email = 'alice@corp.example', password = 'password123') {
+  const login = await page.request.post('/api/auth/login', { data: { email, password } })
+  if (!login.ok()) await page.request.post('/api/auth/register', { data: { email, password } })
   await page.goto('/')
-  await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Display name').fill(name)
-  await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('heading', { name: 'Wiki' })).toBeVisible()
 }
 
@@ -15,11 +17,18 @@ async function newPage(page: Page, path: string) {
   await page.getByRole('button', { name: 'Create' }).click()
 }
 
-test('signs in and lands on the wiki', async ({ page }) => {
+test('registers a new account and lands on the wiki (UI)', async ({ page }) => {
+  const email = `ui-${Date.now()}@corp.example`
   await page.goto('/')
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
-  await signIn(page)
-  await expect(page.getByText('Alice', { exact: true })).toBeVisible()
+  // Switch to "create account", register with email + password.
+  await page.getByRole('button', { name: 'Create one' }).click()
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill('password123')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page.getByRole('heading', { name: 'Wiki' })).toBeVisible()
+  // Display name defaults to the email's local part (set a real one in Settings).
+  await expect(page.getByText(email.split('@')[0], { exact: true })).toBeVisible()
 })
 
 test('signs out and returns to the login screen', async ({ page }) => {
@@ -131,11 +140,11 @@ test('settings: an admin can manage the team (create a department)', async ({ pa
   await page.getByRole('button', { name: 'Team' }).click()
   await expect(page.getByRole('heading', { name: 'Team' })).toBeVisible()
 
-  // Register a department; it appears as a chip.
+  // Register a department; its chip (with a unique delete button) appears.
   const key = `eng${Date.now()}`
   await page.getByLabel('key (folder)').fill(key)
   await page.getByRole('button', { name: 'Add' }).click()
-  await expect(page.getByText(key, { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: `Delete department ${key}` })).toBeVisible()
 
   // Alice shows up in the Team user list (scoped to the dialog; her email also
   // appears in the sidebar).
@@ -153,7 +162,7 @@ test('admin: audit log is reachable and the wiki home no longer shows activity',
 })
 
 test('settings: a member sees neither AI Providers nor Team', async ({ page }) => {
-  await signIn(page, 'bob@corp.example', 'Bob') // not in ADMIN_EMAILS → member
+  await signIn(page, 'bob@corp.example') // not in ADMIN_EMAILS → member
   await page.getByRole('button', { name: 'Settings' }).click()
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
 
@@ -161,6 +170,19 @@ test('settings: a member sees neither AI Providers nor Team', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Appearance' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'AI Providers' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Team' })).toHaveCount(0)
+})
+
+test('account: set your display name in Settings', async ({ page }) => {
+  const email = `named-${Date.now()}@corp.example`
+  await signIn(page, email)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByLabel('Display name').fill('Chris Hunt')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Display name updated')).toBeVisible()
+  await page.keyboard.press('Escape')
+  // The sidebar now shows the chosen name (defaulted from the email before this).
+  await expect(page.getByText('Chris Hunt', { exact: true })).toBeVisible()
 })
 
 test.describe('mobile', () => {

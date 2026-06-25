@@ -1,9 +1,10 @@
 import { Elysia, t } from 'elysia'
 import { env } from '../lib/env'
-import { ServiceUnavailableError } from '../lib/errors'
+import { ServiceUnavailableError, UnauthorizedError } from '../lib/errors'
 import { ok } from '../lib/response'
 import {
   clearedCookie,
+  createPasswordUser,
   createSession,
   destroySession,
   parseCookies,
@@ -11,14 +12,49 @@ import {
   SESSION_COOKIE,
   sessionCookie,
   upsertUser,
+  verifyCredentials,
 } from '../lib/session'
 
 // ── Auth provider endpoints (public; see lib/auth.ts isPublic) ───────────────
-// One seam, env-selected provider (env.AUTH_MODE). `dev` is passwordless for
-// local development (and refuses to boot under NODE_ENV=production, see env.ts).
-// `entra` (Microsoft Entra OIDC) is the planned production provider — it slots
-// in here using the SAME upsertUser + createSession + cookie below.
+// Email + password local accounts (the default for self-hosted use): register +
+// login below, always available. `dev` is a passwordless convenience for local
+// development/tests (refuses to boot under NODE_ENV=production, see env.ts).
+// `entra` (Microsoft Entra OIDC) is the planned production provider on the `entra`
+// branch — it slots in here using the SAME createSession + cookie.
 const authRoutes = new Elysia({ prefix: '/api/auth' })
+  // Create a local account (email + password) and sign in. Name defaults to the
+  // email's local part; set a real one in Settings → Account.
+  .post(
+    '/register',
+    async ({ body, set }) => {
+      const user = await createPasswordUser({ email: body.email, password: body.password })
+      const { token, expiresAt } = createSession(user.id)
+      set.headers['set-cookie'] = sessionCookie(token, expiresAt)
+      return ok({ user: { id: user.id, email: user.email, name: user.name } })
+    },
+    {
+      body: t.Object({
+        email: t.String({ format: 'email', minLength: 3, maxLength: 200 }),
+        password: t.String({ minLength: 8, maxLength: 200 }),
+      }),
+    },
+  )
+  .post(
+    '/login',
+    async ({ body, set }) => {
+      const user = await verifyCredentials({ email: body.email, password: body.password })
+      if (!user) throw new UnauthorizedError('Invalid email or password')
+      const { token, expiresAt } = createSession(user.id)
+      set.headers['set-cookie'] = sessionCookie(token, expiresAt)
+      return ok({ user: { id: user.id, email: user.email, name: user.name } })
+    },
+    {
+      body: t.Object({
+        email: t.String({ format: 'email', minLength: 3, maxLength: 200 }),
+        password: t.String({ minLength: 1, maxLength: 200 }),
+      }),
+    },
+  )
   .post(
     '/dev/login',
     ({ body, set }) => {

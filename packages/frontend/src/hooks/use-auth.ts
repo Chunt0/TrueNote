@@ -30,11 +30,27 @@ export function useIsAdmin(): boolean {
   return !!u && 'role' in u && u.role === 'admin'
 }
 
-export function useDevLogin() {
+export function useRegister() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: { email: string; name?: string }) =>
-      unwrap(api.auth.dev.login.post(input)),
+    mutationFn: (input: { email: string; password: string }) => unwrap(api.auth.register.post(input)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.me }),
+  })
+}
+
+export function useLogin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { email: string; password: string }) => unwrap(api.auth.login.post(input)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.me }),
+  })
+}
+
+// Set the signed-in user's display name (Settings → Account).
+export function useUpdateProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { name: string }) => unwrap(api.profile.put(input)),
     onSuccess: () => qc.invalidateQueries({ queryKey: authKeys.me }),
   })
 }

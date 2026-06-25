@@ -41,6 +41,9 @@ export const env = {
   SESSION_TTL_HOURS: Number(optional('SESSION_TTL_HOURS', '720')),
   /** Comma-separated emails auto-promoted to admin on login (maps to Entra groups later). */
   ADMIN_EMAILS: optional('ADMIN_EMAILS', ''),
+  /** Set the `Secure` flag on the session cookie. Leave off for local http;
+   * turn ON only when the app is served over HTTPS (else the browser drops it). */
+  COOKIE_SECURE: optional('COOKIE_SECURE', 'false') === 'true',
 
   // ── TrueNote: LLM provider seam ─────────────────────────────────────────
   /** 'anthropic' (Claude) | 'openai' (OpenAI-compatible, incl. Ollama). */

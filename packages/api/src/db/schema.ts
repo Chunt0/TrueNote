@@ -15,6 +15,7 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
   externalId: text('external_id'), // OIDC subject/oid; null for dev users
+  passwordHash: text('password_hash'), // argon2id (Bun.password); null for dev/entra users
   role: text('role').notNull().default('member'), // 'admin' | 'member'
   createdAt: text('created_at')
     .notNull()

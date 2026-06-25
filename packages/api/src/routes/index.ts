@@ -4,6 +4,7 @@ import assistantRoutes from './assistant'
 import authRoutes from './auth'
 import docsRoutes from './docs'
 import maintenanceRoutes from './maintenance'
+import profileRoutes from './profile'
 import providersRoutes from './providers'
 
 // ── The single place API routes are registered ───────────────────────────
@@ -14,6 +15,7 @@ import providersRoutes from './providers'
 // See docs/ARCHITECTURE.md → Key decisions (Eden Treaty, no codegen).
 export const routes = new Elysia()
   .use(authRoutes)
+  .use(profileRoutes)
   .use(docsRoutes)
   .use(assistantRoutes)
   .use(providersRoutes)

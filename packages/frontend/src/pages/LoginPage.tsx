@@ -5,23 +5,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/components/ui/sonner'
+import { useLogin, useRegister } from '@/hooks/use-auth'
 import { APP_NAME } from '@/lib/config'
-import { useDevLogin } from '@/hooks/use-auth'
 
-// Dev sign-in (AUTH_MODE=dev): passwordless, for local development only. In
-// production this screen is replaced by Microsoft Entra (OIDC) — same session
-// underneath. The dev provider refuses to run under NODE_ENV=production.
+// Local email + password accounts. New users create an account here; the display
+// name is set afterwards in Settings → Account.
 export default function LoginPage() {
-  const login = useDevLogin()
+  const [mode, setMode] = useState<'signin' | 'register'>('signin')
   const [email, setEmail] = useState('')
-  const [name, setName] = useState('')
+  const [password, setPassword] = useState('')
+  const login = useLogin()
+  const register = useRegister()
+  const busy = login.isPending || register.isPending
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    login.mutate(
-      { email, name: name || undefined },
-      { onError: (err) => toast.error(err.message) },
-    )
+    const onError = (err: Error) => toast.error(err.message)
+    if (mode === 'register') register.mutate({ email, password }, { onError })
+    else login.mutate({ email, password }, { onError })
   }
 
   return (
@@ -30,7 +31,9 @@ export default function LoginPage() {
         <CardHeader className="items-center text-center">
           <PuttyMascot size={40} glow />
           <CardTitle className="mt-2 lowercase">{APP_NAME}</CardTitle>
-          <CardDescription>Sign in to your team wiki (dev mode).</CardDescription>
+          <CardDescription>
+            {mode === 'register' ? 'Create your account' : 'Sign in to your wiki'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -39,7 +42,8 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="you@corp.example"
+                autoComplete="email"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -47,19 +51,32 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Display name</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
-                id="name"
-                placeholder="optional"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={120}
+                id="password"
+                type="password"
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                placeholder={mode === 'register' ? 'At least 8 characters' : 'Your password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={mode === 'register' ? 8 : undefined}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={login.isPending}>
-              {login.isPending ? 'Signing in…' : 'Sign in'}
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? 'Please wait…' : mode === 'register' ? 'Create account' : 'Sign in'}
             </Button>
           </form>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            {mode === 'register' ? 'Already have an account?' : 'No account yet?'}{' '}
+            <button
+              type="button"
+              className="font-medium text-primary hover:underline"
+              onClick={() => setMode(mode === 'register' ? 'signin' : 'register')}
+            >
+              {mode === 'register' ? 'Sign in' : 'Create one'}
+            </button>
+          </p>
         </CardContent>
       </Card>
     </div>

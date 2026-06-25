@@ -14,19 +14,22 @@ FROM deps AS build
 WORKDIR /app
 COPY . .
 ARG VITE_API_URL=""
-ARG VITE_AUTH_TOKEN=""
-ARG VITE_APP_NAME="App"
+ARG VITE_APP_NAME="TrueNote"
 ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_AUTH_TOKEN=$VITE_AUTH_TOKEN
 ENV VITE_APP_NAME=$VITE_APP_NAME
+# Auth is Mode C (cookie sessions) — no token is baked into the bundle.
 # By path (not a scoped --filter) so infra never depends on the package scope.
 RUN cd packages/frontend && bun run build
 
 # ── runtime: serve API + SPA ─────────────────────────────────────────────
 FROM oven/bun:1 AS runtime
 WORKDIR /app
+# git is required: the wiki under DOCS_DIR is a git repo (per-page history).
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/app.db
+ENV DOCS_DIR=/data/wiki
 ENV STATIC_DIR=/app/packages/frontend/dist
 COPY --from=build /app ./
 RUN mkdir -p /data && chown -R bun:bun /data /app
