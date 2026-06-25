@@ -4,7 +4,7 @@
 // in the chunk-based level grammar.
 import { type ChunkCtx, CHUNKS, pickChunk } from './chunks'
 import { BEST_KEY, PHYS } from './constants'
-import type { GameState, Input, Player, Rect } from './types'
+import type { Anchor, GameState, Input, Player, Rect } from './types'
 
 const { PW, PH } = PHYS
 const rand = (a: number, b: number) => a + Math.random() * (b - a)
@@ -20,7 +20,7 @@ export interface Game {
 export function createGame(accent: string, accentLight: string): Game {
   const state: GameState = {
     W: 800, H: 400, time: 0,
-    platforms: [], coins: [], enemies: [], particles: [], popups: [], bubbles: [],
+    platforms: [], coins: [], enemies: [], anchors: [], particles: [], popups: [], bubbles: [],
     player: blankPlayer(),
     cam: { x: 0, shake: 0 },
     furthestX: 0, lastTop: 0, segCount: 0,
@@ -30,10 +30,10 @@ export function createGame(accent: string, accentLight: string): Game {
     coyote: 0, wallCoyote: 0, buffer: 0,
     accent, accentLight,
   }
-  let prevJump = false, prevDive = false
+  let prevJump = false, prevDive = false, prevGrapple = false
 
   function blankPlayer(): Player {
-    return { x: 0, y: 0, vx: 0, vy: 0, onGround: false, wall: 0, clinging: false, diving: false, airJumps: 1, jumping: false, face: 1, squash: 0, blink: 2, prevBottom: 0 }
+    return { x: 0, y: 0, vx: 0, vy: 0, onGround: false, wall: 0, clinging: false, diving: false, grappling: false, anchorRef: null, airJumps: 1, jumping: false, face: 1, squash: 0, blink: 2, prevBottom: 0 }
   }
 
   function spawn(x: number, y: number, n: number, color: string, o: { spread?: number; up?: number; grav?: number; size?: number } = {}) {
@@ -67,6 +67,7 @@ export function createGame(accent: string, accentLight: string): Game {
         wall: (x, y, w, h) => state.platforms.push({ x, y, w, h, ground: false }),
         coin: (x, y) => state.coins.push({ x, y, taken: false, phase: Math.random() * 6 }),
         enemy: (x, y, minX, maxX) => state.enemies.push({ x, y, w: 32, h: 30, vx: rand(52, 92) * (Math.random() < 0.5 ? -1 : 1), minX, maxX, dead: false, blink: rand(1, 4), wob: Math.random() * 6 }),
+        anchor: (x, y) => state.anchors.push({ x, y }),
       }
       const { width, exitY } = chunk.build(ctx)
       state.furthestX = x0 + width
@@ -79,7 +80,7 @@ export function createGame(accent: string, accentLight: string): Game {
 
   function reset() {
     const H = state.H
-    state.platforms = []; state.coins = []; state.enemies = []; state.particles = []; state.popups = []
+    state.platforms = []; state.coins = []; state.enemies = []; state.anchors = []; state.particles = []; state.popups = []
     state.furthestX = 0; state.segCount = 0; state.lastTop = H * 0.7; state.cam.x = 0; state.cam.shake = 0
     state.lastChunkId = ''; state.chunksSinceBreather = 0; state.threatX = -320
     state.score = 0; state.distance = 0; state.combo = 0; state.over = false
@@ -114,6 +115,7 @@ export function createGame(accent: string, accentLight: string): Game {
     s.time += dt
     const jumpPressed = input.jump && !prevJump
     const divePressed = input.dive && !prevDive
+    const grapplePressed = input.grapple && !prevGrapple
 
     // Ambient + effects always animate.
     for (const b of s.bubbles) { b.y -= b.vy * dt; b.x += Math.sin(s.time + b.phase) * b.sway * dt; if (b.y < -20) { b.y = H + 20; b.x = rand(0, W) } }
@@ -126,7 +128,7 @@ export function createGame(accent: string, accentLight: string): Game {
     if (s.over) {
       if (jumpPressed || input.restart) reset()
       input.restart = false
-      prevJump = input.jump; prevDive = input.dive
+      prevJump = input.jump; prevDive = input.dive; prevGrapple = input.grapple
       return
     }
 
@@ -147,7 +149,7 @@ export function createGame(accent: string, accentLight: string): Game {
     s.wallCoyote = p.clinging ? PHYS.WALL_COYOTE : s.wallCoyote - dt
 
     // ── Resolve a jump (ground → wall → double). ──
-    if (s.buffer > 0) {
+    if (s.buffer > 0 && !p.grappling) {
       if (s.coyote > 0) {
         p.vy = -PHYS.JUMP_V; p.jumping = true; p.onGround = false; s.buffer = 0; s.coyote = 0; p.diving = false
         spawn(p.x + PW / 2, p.y + PH, 6, '#caa2ff', { spread: 70, up: 40, grav: 500 })
@@ -165,37 +167,69 @@ export function createGame(accent: string, accentLight: string): Game {
     if (p.vy >= 0) p.jumping = false
 
     // ── Dive-stomp. ──
-    if (divePressed && !p.onGround && !p.diving) { p.diving = true; p.vy = PHYS.DIVE_VY; p.jumping = false }
+    if (divePressed && !p.onGround && !p.diving && !p.grappling) { p.diving = true; p.vy = PHYS.DIVE_VY; p.jumping = false }
 
-    // ── Gravity. ──
-    p.vy += PHYS.GRAVITY * dt
+    // ── Grapple: grab the nearest anchor in range, get yanked toward it. ──
+    if (grapplePressed && !p.grappling) {
+      let best: Anchor | null = null, bestD = PHYS.GRAPPLE_RANGE * PHYS.GRAPPLE_RANGE
+      for (const a of s.anchors) { const dx = a.x - (p.x + PW / 2), dy = a.y - (p.y + PH / 2), d = dx * dx + dy * dy; if (d < bestD) { bestD = d; best = a } }
+      if (best) { p.grappling = true; p.anchorRef = best; p.diving = false; p.jumping = false }
+    }
+
+    const pr = (): Rect => ({ x: p.x, y: p.y, w: PW, h: PH })
     p.prevBottom = p.y + PH
 
-    // ── Move + resolve X. ──
-    p.x += p.vx * dt
-    const pr = (): Rect => ({ x: p.x, y: p.y, w: PW, h: PH })
-    for (const pl of s.platforms) { if (!overlap(pr(), pl)) continue; if (p.vx > 0) p.x = pl.x - PW; else if (p.vx < 0) p.x = pl.x + pl.w; p.vx = 0 }
-    if (p.x < 0) { p.x = 0; p.vx = 0 }
+    if (p.grappling) {
+      const a = p.anchorRef
+      if (!a || !input.grapple) { p.grappling = false; p.anchorRef = null }
+      else {
+        const cx = p.x + PW / 2, cy = p.y + PH / 2, dx = a.x - cx, dy = a.y - cy, d = Math.hypot(dx, dy) || 1
+        if (d < PHYS.GRAPPLE_REACH || jumpPressed) {
+          p.grappling = false; p.anchorRef = null; p.vy = -PHYS.JUMP_V * (jumpPressed ? 0.72 : 0.5); p.airJumps = 1; if (jumpPressed) p.jumping = true
+          spawn(cx, cy, 8, accentLight, { spread: 120, up: 60, grav: 400 })
+        } else {
+          const gdir = (input.right ? 1 : 0) - (input.left ? 1 : 0)
+          p.vx = (dx / d) * PHYS.GRAPPLE_PULL + gdir * 70
+          p.vy = (dy / d) * PHYS.GRAPPLE_PULL
+          if (gdir !== 0) p.face = gdir
+        }
+      }
+    }
 
-    // ── Wall detection + cling (before Y so slide caps fall speed). ──
-    const leftW = sideWall(-1), rightW = sideWall(1)
-    const pressInto = input.left && leftW ? -1 : input.right && rightW ? 1 : 0
-    p.wall = pressInto !== 0 ? pressInto : leftW ? -1 : rightW ? 1 : 0
-    p.clinging = !p.onGround && p.vy > -20 && pressInto !== 0 && !p.diving
-    if (p.clinging) { p.vy = Math.min(p.vy, PHYS.WALL_SLIDE_MAX); p.airJumps = 1; p.face = -p.wall; if (Math.random() < dt * 18) spawn(p.x + (p.wall < 0 ? 0 : PW), p.y + rand(6, PH - 6), 1, '#caa2ff', { spread: 20, up: 20, grav: 300, size: 2 }) }
+    if (p.grappling) {
+      // Yanked through the air (no terrain collision while reeling — fast + clean).
+      p.x += p.vx * dt; p.y += p.vy * dt; p.onGround = false; p.clinging = false
+      if (p.x < 0) p.x = 0
+      if (Math.random() < dt * 30) spawn(p.x + PW / 2, p.y + PH / 2, 1, accentLight, { spread: 30, up: 30, grav: 200, size: 2 })
+    } else {
+      // ── Gravity. ──
+      p.vy += PHYS.GRAVITY * dt
 
-    // ── Move + resolve Y. ──
-    const wasGround = p.onGround
-    p.onGround = false
-    p.y += p.vy * dt
-    for (const pl of s.platforms) {
-      if (!overlap(pr(), pl)) continue
-      if (p.vy > 0) {
-        const landVy = p.vy
-        p.y = pl.y - PH; p.vy = 0; p.onGround = true
-        if (p.diving) { p.diving = false; s.cam.shake = Math.max(s.cam.shake, 5); spawn(p.x + PW / 2, pl.y, 14, '#caa2ff', { spread: 180, up: 40, grav: 600 }) }
-        else if (!wasGround && landVy > 360) { p.squash = 0.4; s.cam.shake = Math.max(s.cam.shake, clamp(landVy / 240, 1.2, 5)); spawn(p.x + PW / 2, pl.y, Math.min(9, (landVy / 130) | 0), '#caa2ff', { spread: 100, up: 25, grav: 600 }) }
-      } else if (p.vy < 0) { p.y = pl.y + pl.h; p.vy = 0; p.jumping = false }
+      // ── Move + resolve X. ──
+      p.x += p.vx * dt
+      for (const pl of s.platforms) { if (!overlap(pr(), pl)) continue; if (p.vx > 0) p.x = pl.x - PW; else if (p.vx < 0) p.x = pl.x + pl.w; p.vx = 0 }
+      if (p.x < 0) { p.x = 0; p.vx = 0 }
+
+      // ── Wall detection + cling (before Y so slide caps fall speed). ──
+      const leftW = sideWall(-1), rightW = sideWall(1)
+      const pressInto = input.left && leftW ? -1 : input.right && rightW ? 1 : 0
+      p.wall = pressInto !== 0 ? pressInto : leftW ? -1 : rightW ? 1 : 0
+      p.clinging = !p.onGround && p.vy > -20 && pressInto !== 0 && !p.diving
+      if (p.clinging) { p.vy = Math.min(p.vy, PHYS.WALL_SLIDE_MAX); p.airJumps = 1; p.face = -p.wall; if (Math.random() < dt * 18) spawn(p.x + (p.wall < 0 ? 0 : PW), p.y + rand(6, PH - 6), 1, '#caa2ff', { spread: 20, up: 20, grav: 300, size: 2 }) }
+
+      // ── Move + resolve Y. ──
+      const wasGround = p.onGround
+      p.onGround = false
+      p.y += p.vy * dt
+      for (const pl of s.platforms) {
+        if (!overlap(pr(), pl)) continue
+        if (p.vy > 0) {
+          const landVy = p.vy
+          p.y = pl.y - PH; p.vy = 0; p.onGround = true
+          if (p.diving) { p.diving = false; s.cam.shake = Math.max(s.cam.shake, 5); spawn(p.x + PW / 2, pl.y, 14, '#caa2ff', { spread: 180, up: 40, grav: 600 }) }
+          else if (!wasGround && landVy > 360) { p.squash = 0.4; s.cam.shake = Math.max(s.cam.shake, clamp(landVy / 240, 1.2, 5)); spawn(p.x + PW / 2, pl.y, Math.min(9, (landVy / 130) | 0), '#caa2ff', { spread: 100, up: 25, grav: 600 }) }
+        } else if (p.vy < 0) { p.y = pl.y + pl.h; p.vy = 0; p.jumping = false }
+      }
     }
     if (p.onGround) { p.airJumps = 1; s.combo = 0 }
     p.squash += (0 - p.squash) * Math.min(1, dt * 12)
@@ -217,16 +251,20 @@ export function createGame(accent: string, accentLight: string): Game {
     s.platforms = s.platforms.filter((pl) => pl.x + pl.w > cut)
     s.coins = s.coins.filter((c) => c.x > cut && !c.taken)
     s.enemies = s.enemies.filter((e) => e.x + e.w > cut && !e.dead)
+    s.anchors = s.anchors.filter((a) => a.x > cut)
 
     // ── Orbs. ──
     for (const c of s.coins) {
       if (c.taken) continue
       const dx = p.x + PW / 2 - c.x, dy = p.y + PH / 2 - (c.y + Math.sin(s.time * 3 + c.phase) * 4)
       if (dx * dx + dy * dy < 28 * 28) {
-        c.taken = true; s.score++
-        if (!p.onGround) s.combo++
+        c.taken = true
+        // Air orbs feed the combo and pay the multiplier; ground orbs are +1.
+        let pts = 1
+        if (!p.onGround) { s.combo++; pts = s.combo }
+        s.score += pts
         spawn(c.x, c.y, 10, '#83f1ff', { spread: 90, up: 120, grav: 300 })
-        s.popups.push({ x: c.x, y: c.y - 8, text: '+1', life: 0.8 })
+        s.popups.push({ x: c.x, y: c.y - 8, text: pts > 1 ? `+${pts} x${s.combo}` : '+1', life: 0.8 })
       }
     }
 
@@ -236,7 +274,7 @@ export function createGame(accent: string, accentLight: string): Game {
       e.x += e.vx * dt; e.blink -= dt; if (e.blink < 0) e.blink = rand(1.5, 4); e.wob += dt
       if (e.x < e.minX) { e.x = e.minX; e.vx = Math.abs(e.vx) }
       if (e.x + e.w > e.maxX) { e.x = e.maxX - e.w; e.vx = -Math.abs(e.vx) }
-      if (overlap(pr(), e)) {
+      if (!p.grappling && overlap(pr(), e)) {
         if (p.prevBottom <= e.y + 8 && p.vy >= 0) {
           e.dead = true; p.vy = -(p.diving ? PHYS.DIVE_BOUNCE : PHYS.JUMP_V * 0.7); p.diving = false; p.airJumps = 1
           s.combo++; const pts = 2 * Math.max(1, s.combo); s.score += pts
@@ -248,7 +286,7 @@ export function createGame(accent: string, accentLight: string): Game {
     }
 
     if (p.y > H + 160) endGame()
-    prevJump = input.jump; prevDive = input.dive
+    prevJump = input.jump; prevDive = input.dive; prevGrapple = input.grapple
   }
 
   return { state, reset, step }

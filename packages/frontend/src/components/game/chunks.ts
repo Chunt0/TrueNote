@@ -14,6 +14,7 @@ export interface ChunkCtx {
   wall: (x: number, y: number, w: number, h: number) => void // vertical wall (clingable)
   coin: (x: number, y: number) => void
   enemy: (x: number, y: number, minX: number, maxX: number) => void
+  anchor: (x: number, y: number) => void // grapple point
 }
 
 export interface Chunk {
@@ -66,8 +67,8 @@ export const CHUNKS: Chunk[] = [
     build: (c) => { const w = 340; c.plat(c.x0, c.groundY, w); const n = 2 + ((c.rng() * 2) | 0); for (let i = 0; i < n; i++) { const ex = c.x0 + 70 + i * 90; c.enemy(ex, c.groundY - 30, c.x0 + 20, c.x0 + w - 20) } coinArc(c, c.x0 + 80, c.groundY - 96, 5, 44, 50); return { width: w, exitY: c.groundY } },
   },
   {
-    id: 'high-low', difficulty: 2, minDist: 150, skills: ['double'],
-    build: (c) => { const w = 320; c.plat(c.x0, c.groundY, w); c.float(c.x0 + 60, c.groundY - 140, 200); coinArc(c, c.x0 + 80, c.groundY - 184, 6, 28, 16); return { width: w, exitY: c.groundY } },
+    id: 'high-low', difficulty: 2, minDist: 150, skills: ['double', 'grapple'],
+    build: (c) => { const w = 320; c.plat(c.x0, c.groundY, w); c.float(c.x0 + 60, c.groundY - 140, 200); coinArc(c, c.x0 + 80, c.groundY - 184, 6, 28, 16); c.anchor(c.x0 + 160, c.groundY - 214); return { width: w, exitY: c.groundY } },
   },
   {
     id: 'pillars', difficulty: 3, minDist: 280, skills: ['jump', 'double'],
@@ -78,6 +79,14 @@ export const CHUNKS: Chunk[] = [
     build: (c) => { const a = 140, gap = 175, b = 200; c.plat(c.x0, c.groundY, a); c.plat(c.x0 + a + gap, c.groundY, b); c.enemy(c.x0 + a + gap + 70, c.groundY - 30, c.x0 + a + gap + 16, c.x0 + a + gap + b - 16); coinArc(c, c.x0 + a + 18, c.groundY - 56, 4, gap / 4); return { width: a + gap + b, exitY: c.groundY } },
   },
   {
+    id: 'grapple-gap', difficulty: 3, minDist: 300, skills: ['grapple'],
+    build: (c) => { const a = 140, gap = 360, b = 180; c.plat(c.x0, c.groundY, a); c.anchor(c.x0 + a + gap * 0.5, c.groundY - 150); c.coin(c.x0 + a + gap * 0.5, c.groundY - 150); c.plat(c.x0 + a + gap, c.groundY, b); coinArc(c, c.x0 + a + gap * 0.5 - 30, c.groundY - 120, 3, 30, 24); return { width: a + gap + b, exitY: c.groundY } },
+  },
+  {
+    id: 'grapple-chain', difficulty: 5, minDist: 480, skills: ['grapple'],
+    build: (c) => { const a = 130; c.plat(c.x0, c.groundY, a); let x = c.x0 + a + 200; for (let i = 0; i < 3; i++) { c.anchor(x, c.groundY - 150 - (i % 2) * 30); c.coin(x, c.groundY - 150 - (i % 2) * 30); x += 230 } c.plat(x, c.groundY, 170); return { width: x + 170 - c.x0, exitY: c.groundY } },
+  },
+  {
     id: 'wall-climb', difficulty: 3, minDist: 200, skills: ['wall'],
     build: (c) => { const a = 140, gap = 150; c.plat(c.x0, c.groundY, a); const wx = c.x0 + a + gap; const topY = c.groundY - 190; c.wall(wx, topY, 26, c.groundY - topY + 40); c.plat(wx + 26, topY, 170); coinArc(c, wx - 30, c.groundY - 70, 3, 18, 40); return { width: a + gap + 26 + 170, exitY: topY } },
   },
@@ -85,7 +94,7 @@ export const CHUNKS: Chunk[] = [
 
 // Difficulty budget grows with distance; pick a teachable chunk within it.
 export function pickChunk(distance: number, rng: () => number, lastId: string): Chunk {
-  const budget = Math.min(1 + distance / 220, 6)
+  const budget = Math.min(1 + distance / 190, 6)
   const pool = CHUNKS.filter((k) => k.minDist <= distance && k.difficulty <= budget && k.id !== lastId)
   const list = pool.length ? pool : CHUNKS.filter((k) => k.minDist <= distance)
   // Weight toward the harder end of what's unlocked, for escalation.

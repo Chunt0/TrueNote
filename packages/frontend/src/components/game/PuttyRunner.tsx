@@ -76,6 +76,7 @@ export function PuttyRunner() {
           <GameButton label="►" {...hold('right')} />
         </div>
         <div className="flex gap-2">
+          <GameButton label="↗" {...hold('grapple')} />
           <GameButton label="▼" {...hold('dive')} />
           <GameButton label="▲" {...hold('jump')} />
         </div>

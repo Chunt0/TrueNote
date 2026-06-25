@@ -5,6 +5,7 @@ export interface Enemy { x: number; y: number; w: number; h: number; vx: number;
 export interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; grav: number }
 export interface Popup { x: number; y: number; text: string; life: number }
 export interface Bubble { x: number; y: number; r: number; vy: number; sway: number; phase: number; near: boolean }
+export interface Anchor { x: number; y: number }
 
 export interface Player {
   x: number; y: number; vx: number; vy: number
@@ -12,6 +13,8 @@ export interface Player {
   wall: number // -1 = wall on left, 1 = wall on right, 0 = none
   clinging: boolean
   diving: boolean
+  grappling: boolean
+  anchorRef: Anchor | null
   airJumps: number // remaining mid-air jumps
   jumping: boolean // in a jump arc (for variable-height cut)
   face: number // 1 / -1
@@ -25,7 +28,7 @@ export interface Input { left: boolean; right: boolean; jump: boolean; dive: boo
 
 export interface GameState {
   W: number; H: number; time: number
-  platforms: Platform[]; coins: Coin[]; enemies: Enemy[]
+  platforms: Platform[]; coins: Coin[]; enemies: Enemy[]; anchors: Anchor[]
   particles: Particle[]; popups: Popup[]; bubbles: Bubble[]
   player: Player
   cam: { x: number; shake: number }

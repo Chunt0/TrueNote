@@ -53,6 +53,8 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
 
   for (const p of s.platforms) drawPlatform(ctx, s, p, rr)
   for (const c of s.coins) if (!c.taken) drawCoin(ctx, s, c)
+  for (const a of s.anchors) drawAnchor(ctx, s, a)
+  if (s.player.grappling && s.player.anchorRef) drawRope(ctx, s)
   for (const e of s.enemies) if (!e.dead) drawEnemy(ctx, s, e, rr)
   drawBlob(ctx, s)
   for (const pa of s.particles) { ctx.globalAlpha = clamp(pa.life / pa.max, 0, 1); ctx.fillStyle = pa.color; ctx.beginPath(); ctx.arc(pa.x, pa.y, pa.size, 0, 7); ctx.fill() }
@@ -78,7 +80,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
   if (s.combo > 1) { ctx.fillStyle = accent; ctx.font = '700 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText(`x${s.combo}`, 128, 27) }
   ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText(`best ${s.best}`, W - 16, 27)
   ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '13px ui-sans-serif, system-ui, sans-serif'
-  ctx.fillText('A / D  move    Space  jump (x2)    S  dive', W / 2, H - 14)
+  ctx.fillText('A/D move   Space jump (x2)   S dive   Shift grapple', W / 2, H - 14)
 
   if (s.over) {
     ctx.fillStyle = 'rgba(8,4,18,0.66)'; ctx.fillRect(0, 0, W, H)
@@ -107,6 +109,30 @@ function drawThreat(ctx: CanvasRenderingContext2D, s: GameState) {
     dg.addColorStop(0, `rgba(210,60,150,${a})`); dg.addColorStop(1, 'rgba(210,60,150,0)')
     ctx.fillStyle = dg; ctx.fillRect(0, 0, s.W * 0.5, s.H)
   }
+}
+
+function drawAnchor(ctx: CanvasRenderingContext2D, s: GameState, a: { x: number; y: number }) {
+  if (a.x < s.cam.x - 30 || a.x > s.cam.x + s.W + 30) return
+  const dx = s.player.x + PW / 2 - a.x, dy = s.player.y + PH / 2 - a.y
+  const inRange = dx * dx + dy * dy < PHYS.GRAPPLE_RANGE * PHYS.GRAPPLE_RANGE
+  const pulse = 0.6 + 0.4 * Math.sin(s.time * 4)
+  const halo = ctx.createRadialGradient(a.x, a.y, 1, a.x, a.y, inRange ? 26 : 16)
+  halo.addColorStop(0, `rgba(255,210,200,${inRange ? 0.5 : 0.28})`); halo.addColorStop(1, 'rgba(255,210,200,0)')
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(a.x, a.y, inRange ? 26 : 16, 0, 7); ctx.fill()
+  ctx.strokeStyle = inRange ? s.accent : 'rgba(255,200,190,0.6)'; ctx.lineWidth = inRange ? 2.5 : 2
+  ctx.beginPath(); ctx.arc(a.x, a.y, 8 * pulse + 3, 0, 7); ctx.stroke()
+  ctx.fillStyle = s.accentLight; ctx.beginPath(); ctx.arc(a.x, a.y, 3.5, 0, 7); ctx.fill()
+  if (inRange) { ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(a.x, a.y, 13, s.time * 2, s.time * 2 + 1.4); ctx.stroke() }
+}
+
+function drawRope(ctx: CanvasRenderingContext2D, s: GameState) {
+  const a = s.player.anchorRef
+  if (!a) return
+  const x1 = s.player.x + PW / 2, y1 = s.player.y + PH / 2
+  const mx = (x1 + a.x) / 2 + Math.sin(s.time * 18) * 6, my = (y1 + a.y) / 2 + Math.cos(s.time * 15) * 6
+  ctx.strokeStyle = s.accent; ctx.lineWidth = 3; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(mx, my, a.x, a.y); ctx.stroke()
+  ctx.strokeStyle = s.accentLight; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(mx, my, a.x, a.y); ctx.stroke()
 }
 
 function drawBubbles(ctx: CanvasRenderingContext2D, s: GameState, near: boolean) {

@@ -19,6 +19,9 @@ export const PHYS = {
   WALL_STICK: 6, // probe distance to detect a wall
   DIVE_VY: 1450, // fast-fall speed when diving
   DIVE_BOUNCE: 700, // upward bounce after stomping an enemy
+  GRAPPLE_RANGE: 250, // how far an anchor can be to grab it
+  GRAPPLE_PULL: 720, // yank speed toward the anchor
+  GRAPPLE_REACH: 34, // detach + small launch once this close to the anchor
   PW: 36,
   PH: 42,
 } as const
