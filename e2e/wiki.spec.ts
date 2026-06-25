@@ -142,6 +142,16 @@ test('settings: an admin can manage the team (create a department)', async ({ pa
   await expect(page.getByRole('dialog').getByText('alice@corp.example')).toBeVisible()
 })
 
+test('admin: audit log is reachable and the wiki home no longer shows activity', async ({ page }) => {
+  await signIn(page) // alice is admin in e2e
+  // The activity/recent sections moved out of the wiki home.
+  await expect(page.getByRole('heading', { name: 'Recent activity' })).toHaveCount(0)
+  // Admin-only Audit link → the searchable audit page.
+  await page.getByRole('link', { name: 'Audit log' }).click()
+  await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible()
+  await expect(page.getByPlaceholder(/search message/i)).toBeVisible()
+})
+
 test('settings: a member sees neither AI Providers nor Team', async ({ page }) => {
   await signIn(page, 'bob@corp.example', 'Bob') // not in ADMIN_EMAILS → member
   await page.getByRole('button', { name: 'Settings' }).click()

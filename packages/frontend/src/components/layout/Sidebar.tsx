@@ -1,4 +1,4 @@
-import { LogOut, Settings, ShieldCheck } from 'lucide-react'
+import { LogOut, ScrollText, Settings, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { PuttyMascot } from '@/components/brand/PuttyMascot'
@@ -41,7 +41,12 @@ function SidebarFooter() {
 
   return (
     <div className="mt-auto shrink-0 border-t border-border p-3">
-      {isAdmin ? <MaintenanceLink /> : null}
+      {isAdmin ? (
+        <>
+          <AuditLink />
+          <MaintenanceLink />
+        </>
+      ) : null}
       <div className="flex items-center gap-2">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
           {initials(me?.user?.name)}
@@ -59,6 +64,19 @@ function SidebarFooter() {
       </div>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
+  )
+}
+
+// Admin-only entry point to the audit log (wiki change history).
+function AuditLink() {
+  return (
+    <Link
+      to="/audit"
+      className="mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+    >
+      <ScrollText className="size-4 shrink-0 opacity-70" />
+      <span className="flex-1">Audit log</span>
+    </Link>
   )
 }
 

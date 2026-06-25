@@ -3,10 +3,12 @@ import { api, type Payload, unwrap } from '@/lib/api'
 
 export type AdminUser = Payload<typeof api.admin.users.get>[number]
 export type Department = Payload<typeof api.admin.departments.get>[number]
+export type AuditEntry = Payload<typeof api.admin.audit.get>[number]
 
 const adminKeys = {
   users: ['admin', 'users'] as const,
   departments: ['admin', 'departments'] as const,
+  audit: (limit: number) => ['admin', 'audit', limit] as const,
 }
 
 export function useAdminUsers() {
@@ -45,5 +47,14 @@ export function useDeleteDepartment() {
       qc.invalidateQueries({ queryKey: adminKeys.departments })
       qc.invalidateQueries({ queryKey: adminKeys.users })
     },
+  })
+}
+
+// The full git-backed change history (admin-only audit trail).
+export function useAudit(limit = 500) {
+  return useQuery({
+    queryKey: adminKeys.audit(limit),
+    queryFn: () => unwrap(api.admin.audit.get({ query: { limit } })),
+    staleTime: 15_000,
   })
 }

@@ -14,7 +14,7 @@ One-page index of every wired capability. If it's here, don't rebuild it.
 | Auth gate (Mode C sessions + service bearer fallback) + `requireAdmin` | `lib/auth.ts` |
 | Sessions + users (cookie, upsert, role, `ADMIN_EMAILS` promotion) | `lib/session.ts` |
 | Department access control (member scoping, admin/service = all) | `lib/access.ts` |
-| Admin API (users: role + departments; department registry CRUD) | `routes/admin.ts` |
+| Admin API (users: role + departments; department CRUD; audit log) | `routes/admin.ts` |
 | Wiki-maintenance checks (deterministic backbone + per-doc LLM) | `lib/checks.ts` |
 | Maintenance scheduler + run executor + reviewed-diff apply | `lib/maintenance.ts` |
 | Maintenance admin API (config, runs, suggestions, apply) | `routes/maintenance.ts` |
@@ -48,6 +48,7 @@ One-page index of every wired capability. If it's here, don't rebuild it.
 | Admin hooks (users + departments) | `hooks/use-admin.ts` |
 | Maintenance hooks (config / runs / suggestions) | `hooks/use-maintenance.ts` |
 | Maintenance review page (admin-only) | `pages/MaintenancePage.tsx` |
+| Audit log page (admin-only, searchable git change history) | `pages/AuditPage.tsx` |
 | Wiki data hooks (list/read/search/CRUD) | `hooks/use-docs.ts` |
 | Dockable Assistant panel (chat + page-context bar) + hook | `components/assistant/`, `hooks/use-assistant.ts` |
 | Settings (registry-driven sections; `adminOnly` hidden from members: providers/team/maintenance/appearance/account/about) | `components/SettingsDialog.tsx`, `components/settings/` |

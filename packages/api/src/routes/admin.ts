@@ -3,6 +3,7 @@ import { Elysia, t } from 'elysia'
 import { db } from '../db'
 import { departments, userDepartments, users } from '../db/schema'
 import { authPlugin, requireAdmin } from '../lib/auth'
+import { recentChanges } from '../lib/docstore'
 import { BadRequestError, NotFoundError } from '../lib/errors'
 import { ok } from '../lib/response'
 import { idParam } from '../lib/schemas'
@@ -89,5 +90,12 @@ const adminRoutes = new Elysia({ prefix: '/api/admin' })
     },
     { params: t.Object({ key: t.String({ minLength: 1, maxLength: 60 }) }) },
   )
+
+  // ── Audit log ──────────────────────────────────────────────────────────────
+  // The full git-backed change history (who/what/when, with commit hashes) across
+  // the whole wiki — admins see everything, unfiltered. The client searches it.
+  .get('/audit', ({ query }) => ok(recentChanges(Math.min(query.limit ?? 500, 2000))), {
+    query: t.Object({ limit: t.Optional(t.Numeric()) }),
+  })
 
 export default adminRoutes

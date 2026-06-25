@@ -30,6 +30,20 @@ describe('admin API auth', () => {
   })
 })
 
+describe('audit log', () => {
+  it('401s without auth and 403s for a member', async () => {
+    expect((await api('/api/admin/audit', {}, false)).status).toBe(401)
+    const cookie = await login(`auditor-${uniq()}@corp.example`, 'Auditor')
+    expect((await api('/api/admin/audit', { headers: { cookie } }, false)).status).toBe(403)
+  })
+
+  it('returns an array for an admin (empty when git is off in tests)', async () => {
+    const res = await json(await api('/api/admin/audit'))
+    expect(res.ok).toBe(true)
+    expect(Array.isArray(res.data)).toBe(true)
+  })
+})
+
 describe('department CRUD', () => {
   it('creates (slugified), lists, and deletes a department', async () => {
     const raw = `Field Ops ${uniq()}`

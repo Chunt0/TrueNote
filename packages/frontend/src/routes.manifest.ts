@@ -1,4 +1,4 @@
-import { FileText, ShieldCheck } from 'lucide-react'
+import { FileText, ScrollText, ShieldCheck } from 'lucide-react'
 import { type ComponentType, lazy, type LazyExoticComponent } from 'react'
 
 export interface RouteEntry {
@@ -26,6 +26,15 @@ export const routes: RouteEntry[] = [
     label: 'Maintenance',
     icon: ShieldCheck,
     Component: lazy(() => import('@/pages/MaintenancePage')),
+    hidden: true,
+  },
+  // Admin-only audit log (git change history). Routed but kept out of nav; the
+  // sidebar shows an admin-gated link and the page guards on useIsAdmin.
+  {
+    path: '/audit',
+    label: 'Audit log',
+    icon: ScrollText,
+    Component: lazy(() => import('@/pages/AuditPage')),
     hidden: true,
   },
 ]
