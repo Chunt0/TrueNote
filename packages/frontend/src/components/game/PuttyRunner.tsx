@@ -1,5 +1,7 @@
+import { Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { createAudio } from './audio'
 import { createGame } from './engine'
 import { draw } from './render'
 import { dailySeed, mulberry32 } from './rng'
@@ -17,9 +19,11 @@ export function PuttyRunner() {
   const input = useRef<Input>({ left: false, right: false, jump: false, dive: false, grapple: false, restart: false })
   const phaseRef = useRef<Phase>('start')
   const modeRef = useRef<Mode>('endless')
-  const actions = useRef<{ start: () => void; resume: () => void; restart: () => void; setMode: (m: Mode) => void } | null>(null)
+  const actions = useRef<{ start: () => void; resume: () => void; restart: () => void; setMode: (m: Mode) => void; toggleSound: () => void } | null>(null)
+  const soundRef = useRef(false)
   const [phase, setPhaseState] = useState<Phase>('start')
   const [mode, setModeState] = useState<Mode>('endless')
+  const [sound, setSound] = useState(false)
   const [best, setBest] = useState(0)
 
   useEffect(() => {
@@ -31,7 +35,9 @@ export function PuttyRunner() {
 
     const newRng = () => (modeRef.current === 'daily' ? mulberry32(dailySeed(Date.now())) : Math.random)
     const game = createGame(accent, '#ffd9cf', newRng)
+    game.state.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     setBest(game.state.best)
+    const audio = createAudio()
 
     const setPhase = (p: Phase) => { phaseRef.current = p; setPhaseState(p) }
     actions.current = {
@@ -39,6 +45,7 @@ export function PuttyRunner() {
       resume: () => setPhase('playing'),
       restart: () => { game.reset(); setPhase('playing') },
       setMode: (m: Mode) => { modeRef.current = m; setModeState(m); game.reset() },
+      toggleSound: () => { const on = !soundRef.current; soundRef.current = on; setSound(on); audio.setMuted(!on) },
     }
 
     function fit() {
@@ -56,7 +63,10 @@ export function PuttyRunner() {
       fit()
       if (!started) { if (canvas!.clientWidth < 4 || canvas!.clientHeight < 4) { raf = requestAnimationFrame(frame); return } game.reset(); started = true; last = now }
       let dt = (now - last) / 1000; last = now; dt = Math.min(dt, 1 / 30)
-      if (phaseRef.current === 'playing' && !document.hidden) game.step(dt, input.current)
+      if (phaseRef.current === 'playing' && !document.hidden) {
+        game.step(dt, input.current)
+        for (const ev of game.state.sfx) audio.play(ev, game.state.combo)
+      }
       draw(ctx, game.state)
       raf = requestAnimationFrame(frame)
     }
@@ -136,6 +146,15 @@ export function PuttyRunner() {
           </div>
         </Overlay>
       )}
+
+      <button
+        type="button"
+        aria-label={sound ? 'Mute' : 'Unmute'}
+        onClick={() => actions.current?.toggleSound()}
+        className="absolute right-2 top-2 z-20 flex size-8 items-center justify-center rounded-md bg-black/30 text-white/80 backdrop-blur hover:bg-black/55"
+      >
+        {sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+      </button>
     </div>
   )
 }

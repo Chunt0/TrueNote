@@ -43,7 +43,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
   drawBubbles(ctx, s, false)
 
   // ── World (camera + shake). ──
-  const shx = (Math.random() - 0.5) * cam.shake, shy = (Math.random() - 0.5) * cam.shake
+  const shx = s.reduceMotion ? 0 : (Math.random() - 0.5) * cam.shake, shy = s.reduceMotion ? 0 : (Math.random() - 0.5) * cam.shake
   ctx.save(); ctx.translate(-cam.x + shx, shy)
 
   // Stalks (near parallax, drawn in world space approximated by cam offset).
@@ -82,7 +82,7 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
   ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText(`${s.score}`, 36, 27)
   ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.fillText(`${s.distance}m`, 72, 27)
   if (s.combo > 1) { ctx.fillStyle = accent; ctx.font = '700 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText(`x${s.combo}`, 128, 27) }
-  ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText(`best ${s.best}`, W - 16, 27)
+  ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText(`best ${s.best}`, W - 46, 27)
 
   // Active power-ups (top-left, under the score).
   ctx.textAlign = 'left'; ctx.font = '700 11px ui-sans-serif, system-ui, sans-serif'

@@ -44,6 +44,8 @@ export interface GameState {
   threatX: number // the advancing "Devourer" world-x; caught if player falls behind it
   palette: Palette; biome: number; biomeName: string; bannerT: number
   rng: () => number // generation RNG (Math.random for endless; seeded for daily)
+  sfx: string[] // sound events for this frame; the wrapper drains + plays them
+  reduceMotion: boolean // honor prefers-reduced-motion (cuts shake/flash)
   score: number; distance: number; combo: number; over: boolean; best: number
   coyote: number; wallCoyote: number; buffer: number
   accent: string; accentLight: string

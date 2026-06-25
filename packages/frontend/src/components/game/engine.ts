@@ -33,7 +33,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     furthestX: 0, lastTop: 0, segCount: 0,
     lastChunkId: '', chunksSinceBreather: 0, threatX: -300,
     palette: BIOMES[0].pal, biome: 0, biomeName: BIOMES[0].name, bannerT: 0,
-    rng: Math.random,
+    rng: Math.random, sfx: [], reduceMotion: false,
     score: 0, distance: 0, combo: 0, over: false,
     best: Number(localStorage.getItem(BEST_KEY) || 0),
     coyote: 0, wallCoyote: 0, buffer: 0,
@@ -95,7 +95,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     const H = state.H
     state.rng = newRng() // fresh generation RNG (re-seeded for daily so the run repeats)
     const bi0 = paletteAt(0); state.palette = bi0.pal; state.biome = bi0.index; state.biomeName = bi0.name; state.bannerT = 0
-    state.platforms = []; state.coins = []; state.enemies = []; state.anchors = []; state.hazards = []; state.powers = []; state.particles = []; state.popups = []
+    state.platforms = []; state.coins = []; state.enemies = []; state.anchors = []; state.hazards = []; state.powers = []; state.particles = []; state.popups = []; state.sfx.length = 0
     state.effects = { shield: false, magnet: 0, slowmo: 0, x2: 0 }
     state.furthestX = 0; state.segCount = 0; state.lastTop = H * 0.7; state.cam.x = 0; state.cam.shake = 0
     state.lastChunkId = ''; state.chunksSinceBreather = 0; state.threatX = -320
@@ -114,6 +114,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
   function endGame() {
     if (state.over) return
     state.over = true
+    state.sfx.push('over')
     state.cam.shake = Math.max(state.cam.shake, 10)
     spawn(state.player.x + PW / 2, state.player.y + PH / 2, 18, state.accent, { spread: 220, up: 240, size: 6 })
     const total = state.score * 10 + state.distance
@@ -129,6 +130,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
       p.vy = -360; p.diving = false
       spawn(p.x + PW / 2, p.y + PH / 2, 16, '#9be8ff', { spread: 180, up: 160, size: 5 })
       state.popups.push({ x: p.x + PW / 2, y: p.y - 10, text: 'shield!', life: 1 })
+      state.sfx.push('shield')
       return false
     }
     endGame()
@@ -144,6 +146,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
   function step(dt: number, input: Input) {
     const s = state, p = s.player, H = s.H, W = s.W
     s.time += dt
+    s.sfx.length = 0 // sound events accumulate during this frame; wrapper drains them
     const jumpPressed = input.jump && !prevJump
     const divePressed = input.dive && !prevDive
     const grapplePressed = input.grapple && !prevGrapple
@@ -190,14 +193,14 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     if (s.buffer > 0 && !p.grappling) {
       if (s.coyote > 0) {
         p.vy = -PHYS.JUMP_V; p.jumping = true; p.onGround = false; s.buffer = 0; s.coyote = 0; p.diving = false
-        spawn(p.x + PW / 2, p.y + PH, 6, '#caa2ff', { spread: 70, up: 40, grav: 500 })
+        spawn(p.x + PW / 2, p.y + PH, 6, '#caa2ff', { spread: 70, up: 40, grav: 500 }); s.sfx.push('jump')
       } else if (p.wall !== 0 && (p.clinging || s.wallCoyote > 0)) {
         p.vx = -p.wall * PHYS.WALL_JUMP_VX; p.vy = -PHYS.WALL_JUMP_VY; p.face = -p.wall
         p.jumping = true; p.clinging = false; p.airJumps = 1; s.buffer = 0; s.wallCoyote = 0; p.diving = false
-        spawn(p.x + (p.wall < 0 ? 0 : PW), p.y + PH / 2, 7, '#caa2ff', { spread: 90, up: 80, grav: 500 })
+        spawn(p.x + (p.wall < 0 ? 0 : PW), p.y + PH / 2, 7, '#caa2ff', { spread: 90, up: 80, grav: 500 }); s.sfx.push('wall')
       } else if (p.airJumps > 0) {
         p.vy = -PHYS.DOUBLE_JUMP_V; p.airJumps--; p.jumping = true; s.buffer = 0; p.diving = false; p.squash = -0.3
-        spawn(p.x + PW / 2, p.y + PH / 2, 10, accentLight, { spread: 130, up: 60, grav: 300, size: 3 })
+        spawn(p.x + PW / 2, p.y + PH / 2, 10, accentLight, { spread: 130, up: 60, grav: 300, size: 3 }); s.sfx.push('double')
       }
     }
     // Variable height: cut a rising jump on release.
@@ -205,13 +208,13 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     if (p.vy >= 0) p.jumping = false
 
     // ── Dive-stomp. ──
-    if (divePressed && !p.onGround && !p.diving && !p.grappling) { p.diving = true; p.vy = PHYS.DIVE_VY; p.jumping = false }
+    if (divePressed && !p.onGround && !p.diving && !p.grappling) { p.diving = true; p.vy = PHYS.DIVE_VY; p.jumping = false; s.sfx.push('dive') }
 
     // ── Grapple: grab the nearest anchor in range, get yanked toward it. ──
     if (grapplePressed && !p.grappling) {
       let best: Anchor | null = null, bestD = PHYS.GRAPPLE_RANGE * PHYS.GRAPPLE_RANGE
       for (const a of s.anchors) { const dx = a.x - (p.x + PW / 2), dy = a.y - (p.y + PH / 2), d = dx * dx + dy * dy; if (d < bestD) { bestD = d; best = a } }
-      if (best) { p.grappling = true; p.anchorRef = best; p.diving = false; p.jumping = false }
+      if (best) { p.grappling = true; p.anchorRef = best; p.diving = false; p.jumping = false; s.sfx.push('grapple') }
     }
 
     const pr = (): Rect => ({ x: p.x, y: p.y, w: PW, h: PH })
@@ -266,12 +269,12 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
           p.y = pl.y - PH
           if (pl.spring) {
             p.vy = -PHYS.SPRING_V; p.airJumps = 1; p.jumping = true; p.diving = false
-            s.cam.shake = Math.max(s.cam.shake, 3); spawn(p.x + PW / 2, pl.y, 12, '#7be36a', { spread: 120, up: 220, grav: 500 })
+            s.cam.shake = Math.max(s.cam.shake, 3); spawn(p.x + PW / 2, pl.y, 12, '#7be36a', { spread: 120, up: 220, grav: 500 }); s.sfx.push('spring')
           } else {
             p.vy = 0; p.onGround = true
             if (pl.crumble && pl.ct < 0) pl.ct = PHYS.CRUMBLE_DELAY
-            if (p.diving) { p.diving = false; s.cam.shake = Math.max(s.cam.shake, 5); spawn(p.x + PW / 2, pl.y, 14, '#caa2ff', { spread: 180, up: 40, grav: 600 }) }
-            else if (!wasGround && landVy > 360) { p.squash = 0.4; s.cam.shake = Math.max(s.cam.shake, clamp(landVy / 240, 1.2, 5)); spawn(p.x + PW / 2, pl.y, Math.min(9, (landVy / 130) | 0), '#caa2ff', { spread: 100, up: 25, grav: 600 }) }
+            if (p.diving) { p.diving = false; s.cam.shake = Math.max(s.cam.shake, 5); spawn(p.x + PW / 2, pl.y, 14, '#caa2ff', { spread: 180, up: 40, grav: 600 }); s.sfx.push('land') }
+            else if (!wasGround && landVy > 360) { p.squash = 0.4; s.cam.shake = Math.max(s.cam.shake, clamp(landVy / 240, 1.2, 5)); spawn(p.x + PW / 2, pl.y, Math.min(9, (landVy / 130) | 0), '#caa2ff', { spread: 100, up: 25, grav: 600 }); s.sfx.push('land') }
           }
         } else if (p.vy < 0) { p.y = pl.y + pl.h; p.vy = 0; p.jumping = false }
       }
@@ -286,7 +289,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     // Biome palette (cross-faded) + a banner when it changes.
     const bi = paletteAt(s.distance)
     s.palette = bi.pal
-    if (bi.index !== s.biome) { s.biome = bi.index; s.biomeName = bi.name; s.bannerT = 2.6 }
+    if (bi.index !== s.biome) { s.biome = bi.index; s.biomeName = bi.name; s.bannerT = 2.6; s.sfx.push('biome') }
     if (s.bannerT > 0) s.bannerT -= dt
     const targetCam = clamp(p.x - W * 0.34 + p.face * 56, 0, Infinity)
     s.cam.x += (targetCam - s.cam.x) * Math.min(1, dt * 6)
@@ -323,7 +326,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
         if (!p.onGround) { s.combo++; pts = s.combo }
         pts *= mult
         s.score += pts
-        spawn(c.x, c.y, 10, '#83f1ff', { spread: 90, up: 120, grav: 300 })
+        spawn(c.x, c.y, 10, '#83f1ff', { spread: 90, up: 120, grav: 300 }); s.sfx.push('orb')
         s.popups.push({ x: c.x, y: c.y - 8, text: pts > 1 ? `+${pts}${s.combo > 1 ? ` x${s.combo}` : ''}` : '+1', life: 0.8 })
       }
     }
@@ -351,7 +354,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
         else if (stomp) {
           e.dead = true; p.vy = -(p.diving ? PHYS.DIVE_BOUNCE : PHYS.JUMP_V * 0.7); p.diving = false; p.airJumps = 1
           s.combo++; const pts = 2 * Math.max(1, s.combo) * mult; s.score += pts
-          s.cam.shake = Math.max(s.cam.shake, 4)
+          s.cam.shake = Math.max(s.cam.shake, 4); s.sfx.push('stomp')
           spawn(e.x + e.w / 2, e.y + e.h / 2, 16, e.kind === 'floater' ? '#8be9ff' : '#86e36a', { spread: 160, up: 160, grav: 800, size: 5 })
           s.popups.push({ x: e.x + e.w / 2, y: e.y, text: s.combo > 1 ? `+${pts} x${s.combo}` : `+${pts}`, life: 0.9 })
         } else hurt()
@@ -371,7 +374,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
         else if (pw.kind === 'magnet') s.effects.magnet = PHYS.POWER_T
         else if (pw.kind === 'slowmo') s.effects.slowmo = PHYS.POWER_T
         else s.effects.x2 = PHYS.POWER_T
-        s.cam.shake = Math.max(s.cam.shake, 3)
+        s.cam.shake = Math.max(s.cam.shake, 3); s.sfx.push('power')
         spawn(pw.x, pw.y, 16, POWER_COLOR[pw.kind], { spread: 150, up: 170, size: 5 })
         s.popups.push({ x: pw.x, y: pw.y - 12, text: POWER_LABEL[pw.kind], life: 1.2 })
       }
