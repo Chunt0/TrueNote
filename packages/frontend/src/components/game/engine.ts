@@ -2,6 +2,7 @@
 // Pure logic (no canvas/DOM); the React wrapper drives step(dt, input) and a
 // renderer reads the returned state. P1 uses random generation (genTo); P2 swaps
 // in the chunk-based level grammar.
+import { BIOMES, paletteAt } from './biomes'
 import { type ChunkCtx, CHUNKS, pickChunk } from './chunks'
 import { BEST_KEY, PHYS } from './constants'
 import type { Anchor, EnemyKind, GameState, Input, Player, Rect } from './types'
@@ -20,7 +21,9 @@ export interface Game {
   step(dt: number, input: Input): void
 }
 
-export function createGame(accent: string, accentLight: string): Game {
+// newRng returns a FRESH generation RNG each call (reset() calls it): Math.random
+// for endless, or a freshly-seeded mulberry32 for a deterministic daily run.
+export function createGame(accent: string, accentLight: string, newRng: () => () => number = () => Math.random): Game {
   const state: GameState = {
     W: 800, H: 400, time: 0,
     platforms: [], coins: [], enemies: [], anchors: [], hazards: [], powers: [], particles: [], popups: [], bubbles: [],
@@ -29,6 +32,8 @@ export function createGame(accent: string, accentLight: string): Game {
     cam: { x: 0, shake: 0 },
     furthestX: 0, lastTop: 0, segCount: 0,
     lastChunkId: '', chunksSinceBreather: 0, threatX: -300,
+    palette: BIOMES[0].pal, biome: 0, biomeName: BIOMES[0].name, bannerT: 0,
+    rng: Math.random,
     score: 0, distance: 0, combo: 0, over: false,
     best: Number(localStorage.getItem(BEST_KEY) || 0),
     coyote: 0, wallCoyote: 0, buffer: 0,
@@ -62,10 +67,10 @@ export function createGame(accent: string, accentLight: string): Game {
     while (state.furthestX < targetX) {
       const chunk = state.chunksSinceBreather >= 4
         ? CHUNKS.find((k) => k.id === 'breather')!
-        : pickChunk(state.distance, Math.random, state.lastChunkId)
+        : pickChunk(state.distance, state.rng, state.lastChunkId)
       const x0 = state.furthestX
       const ctx: ChunkCtx = {
-        x0, groundY: state.lastTop, H, rng: Math.random,
+        x0, groundY: state.lastTop, H, rng: state.rng,
         plat: (x, y, w) => state.platforms.push({ x, y, w, h: H - y + 260, ground: true, ct: -1 }),
         float: (x, y, w) => state.platforms.push({ x, y, w, h: 16, ground: false, ct: -1 }),
         wall: (x, y, w, h) => state.platforms.push({ x, y, w, h, ground: false, ct: -1 }),
@@ -74,7 +79,7 @@ export function createGame(accent: string, accentLight: string): Game {
         spikes: (x, y, w) => state.hazards.push({ x, y, w, h: 18, kind: 'spikes' }),
         power: (x, y, kind) => state.powers.push({ x, y, kind, taken: false, phase: Math.random() * 6 }),
         coin: (x, y) => state.coins.push({ x, y, taken: false, phase: Math.random() * 6 }),
-        enemy: (x, y, minX, maxX, kind: EnemyKind = 'gloop') => state.enemies.push({ x, y, w: 32, h: 30, vx: rand(52, 92) * (Math.random() < 0.5 ? -1 : 1), vy: 0, minX, maxX, baseY: y, dead: false, blink: rand(1, 4), wob: Math.random() * 6, t: rand(0.6, 1.6), kind }),
+        enemy: (x, y, minX, maxX, kind: EnemyKind = 'gloop') => state.enemies.push({ x, y, w: 32, h: 30, vx: (52 + state.rng() * 40) * (state.rng() < 0.5 ? -1 : 1), vy: 0, minX, maxX, baseY: y, dead: false, blink: rand(1, 4), wob: state.rng() * 6, t: rand(0.6, 1.6), kind }),
         anchor: (x, y) => state.anchors.push({ x, y }),
       }
       const { width, exitY } = chunk.build(ctx)
@@ -88,6 +93,8 @@ export function createGame(accent: string, accentLight: string): Game {
 
   function reset() {
     const H = state.H
+    state.rng = newRng() // fresh generation RNG (re-seeded for daily so the run repeats)
+    const bi0 = paletteAt(0); state.palette = bi0.pal; state.biome = bi0.index; state.biomeName = bi0.name; state.bannerT = 0
     state.platforms = []; state.coins = []; state.enemies = []; state.anchors = []; state.hazards = []; state.powers = []; state.particles = []; state.popups = []
     state.effects = { shield: false, magnet: 0, slowmo: 0, x2: 0 }
     state.furthestX = 0; state.segCount = 0; state.lastTop = H * 0.7; state.cam.x = 0; state.cam.shake = 0
@@ -276,6 +283,11 @@ export function createGame(accent: string, accentLight: string): Game {
 
     // ── Camera + world streaming. ──
     s.distance = Math.max(s.distance, Math.floor(p.x / 48))
+    // Biome palette (cross-faded) + a banner when it changes.
+    const bi = paletteAt(s.distance)
+    s.palette = bi.pal
+    if (bi.index !== s.biome) { s.biome = bi.index; s.biomeName = bi.name; s.bannerT = 2.6 }
+    if (s.bannerT > 0) s.bannerT -= dt
     const targetCam = clamp(p.x - W * 0.34 + p.face * 56, 0, Infinity)
     s.cam.x += (targetCam - s.cam.x) * Math.min(1, dt * 6)
     genChunks(s.cam.x + W + 460)

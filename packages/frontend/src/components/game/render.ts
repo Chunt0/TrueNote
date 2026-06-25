@@ -1,5 +1,5 @@
 // Renderer: draws a GameState onto a 2D context. Pure drawing — no game logic.
-import { C, PHYS } from './constants'
+import { PHYS } from './constants'
 import type { Coin, Enemy, GameState, Platform } from './types'
 
 const { PW, PH } = PHYS
@@ -9,6 +9,7 @@ const hash = (n: number) => { const x = Math.sin(n * 127.1 + 11.7) * 43758.5453;
 export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
   const { W, H, cam, time } = s
   const accent = s.accent
+  const C = s.palette
 
   const rr = (x: number, y: number, w: number, h: number, r: number) => {
     r = Math.min(r, w / 2, h / 2)
@@ -101,6 +102,14 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
   ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '13px ui-sans-serif, system-ui, sans-serif'
   ctx.fillText('A/D move   Space jump (x2)   S dive   Shift grapple', W / 2, H - 14)
 
+  if (s.bannerT > 0) {
+    const a = s.bannerT > 2.2 ? (2.6 - s.bannerT) / 0.4 : s.bannerT < 0.6 ? s.bannerT / 0.6 : 1
+    ctx.globalAlpha = clamp(a, 0, 1)
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = '700 24px ui-sans-serif, system-ui, sans-serif'
+    ctx.fillText(s.biomeName, W / 2, H * 0.28)
+    ctx.globalAlpha = 1
+  }
+
   if (s.over) {
     ctx.fillStyle = 'rgba(8,4,18,0.66)'; ctx.fillRect(0, 0, W, H)
     ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = '700 38px ui-sans-serif, system-ui, sans-serif'; ctx.fillText('Game Over', W / 2, H / 2 - 24)
@@ -190,6 +199,7 @@ function drawPower(ctx: CanvasRenderingContext2D, s: GameState, pw: { x: number;
 
 function drawPlatform(ctx: CanvasRenderingContext2D, s: GameState, p: Platform, rr: (x: number, y: number, w: number, h: number, r: number) => void) {
   const { cam, W, time } = s
+  const C = s.palette
   if (p.x + p.w < cam.x - 4 || p.x > cam.x + W + 4) return
   if (p.crumble) {
     const triggered = p.ct >= 0
@@ -222,6 +232,7 @@ function drawPlatform(ctx: CanvasRenderingContext2D, s: GameState, p: Platform, 
 
 function drawCoin(ctx: CanvasRenderingContext2D, s: GameState, c: Coin) {
   const { cam, W, time } = s
+  const C = s.palette
   if (c.x < cam.x - 30 || c.x > cam.x + W + 30) return
   const y = c.y + Math.sin(time * 3 + c.phase) * 4
   const sx = Math.abs(Math.cos(time * 4 + c.phase)) * 0.9 + 0.1
@@ -243,6 +254,7 @@ function drawSpring(ctx: CanvasRenderingContext2D, p: Platform, rr: (x: number, 
 
 function drawEnemy(ctx: CanvasRenderingContext2D, s: GameState, e: Enemy, rr: (x: number, y: number, w: number, h: number, r: number) => void) {
   if (e.x + e.w < s.cam.x || e.x > s.cam.x + s.W) return
+  const C = s.palette
   const cx = e.x + e.w / 2, by = e.y + e.h
   ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(cx, by + 2, e.w * 0.5, 4, 0, 0, 7); ctx.fill()
 

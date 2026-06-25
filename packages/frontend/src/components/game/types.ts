@@ -1,3 +1,5 @@
+import type { Palette } from './biomes'
+
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Platform extends Rect { ground: boolean; spring?: boolean; crumble?: boolean; ct: number /* crumble countdown, <0 = stable */ }
 export interface Coin { x: number; y: number; taken: boolean; phase: number }
@@ -40,6 +42,8 @@ export interface GameState {
   furthestX: number; lastTop: number; segCount: number
   lastChunkId: string; chunksSinceBreather: number
   threatX: number // the advancing "Devourer" world-x; caught if player falls behind it
+  palette: Palette; biome: number; biomeName: string; bannerT: number
+  rng: () => number // generation RNG (Math.random for endless; seeded for daily)
   score: number; distance: number; combo: number; over: boolean; best: number
   coyote: number; wallCoyote: number; buffer: number
   accent: string; accentLight: string
