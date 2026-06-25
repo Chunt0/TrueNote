@@ -46,7 +46,8 @@ export interface GameState {
   rng: () => number // generation RNG (Math.random for endless; seeded for daily)
   sfx: string[] // sound events for this frame; the wrapper drains + plays them
   reduceMotion: boolean // honor prefers-reduced-motion (cuts shake/flash)
-  score: number; distance: number; combo: number; over: boolean; best: number
+  mode: 'endless' | 'daily' // selects which best-score slot to load/save
+  score: number; distance: number; combo: number; maxCombo: number; over: boolean; best: number
   coyote: number; wallCoyote: number; buffer: number
   accent: string; accentLight: string
 }

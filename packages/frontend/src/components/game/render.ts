@@ -112,9 +112,10 @@ export function draw(ctx: CanvasRenderingContext2D, s: GameState) {
 
   if (s.over) {
     ctx.fillStyle = 'rgba(8,4,18,0.66)'; ctx.fillRect(0, 0, W, H)
-    ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = '700 38px ui-sans-serif, system-ui, sans-serif'; ctx.fillText('Game Over', W / 2, H / 2 - 24)
-    ctx.font = '16px ui-sans-serif, system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(`${s.score} orbs · ${s.distance}m   (best ${s.best})`, W / 2, H / 2 + 6)
-    ctx.fillStyle = accent; ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText('Press Space or tap to play again', W / 2, H / 2 + 38)
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = '700 38px ui-sans-serif, system-ui, sans-serif'; ctx.fillText('Game Over', W / 2, H / 2 - 34)
+    ctx.font = '16px ui-sans-serif, system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.88)'; ctx.fillText(`${s.score} orbs · ${s.distance}m · best combo x${s.maxCombo}`, W / 2, H / 2 - 4)
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '600 14px ui-sans-serif, system-ui, sans-serif'; ctx.fillText(`${s.mode} best ${s.best}`, W / 2, H / 2 + 20)
+    ctx.fillStyle = accent; ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif'; ctx.fillText('Press Space or tap to play again', W / 2, H / 2 + 50)
   }
 }
 

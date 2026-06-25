@@ -33,13 +33,16 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     furthestX: 0, lastTop: 0, segCount: 0,
     lastChunkId: '', chunksSinceBreather: 0, threatX: -300,
     palette: BIOMES[0].pal, biome: 0, biomeName: BIOMES[0].name, bannerT: 0,
-    rng: Math.random, sfx: [], reduceMotion: false,
-    score: 0, distance: 0, combo: 0, over: false,
-    best: Number(localStorage.getItem(BEST_KEY) || 0),
+    rng: Math.random, sfx: [], reduceMotion: false, mode: 'endless',
+    score: 0, distance: 0, combo: 0, maxCombo: 0, over: false,
+    best: 0,
     coyote: 0, wallCoyote: 0, buffer: 0,
     accent, accentLight,
   }
   let prevJump = false, prevDive = false, prevGrapple = false
+  // Endless and daily keep separate high scores (the daily run repeats per date).
+  const bestKey = () => `${BEST_KEY}-${state.mode}`
+  state.best = Number(localStorage.getItem(bestKey()) || 0)
 
   function blankPlayer(): Player {
     return { x: 0, y: 0, vx: 0, vy: 0, onGround: false, wall: 0, clinging: false, diving: false, grappling: false, anchorRef: null, airJumps: 1, jumping: false, face: 1, squash: 0, blink: 2, prevBottom: 0 }
@@ -99,7 +102,8 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     state.effects = { shield: false, magnet: 0, slowmo: 0, x2: 0 }
     state.furthestX = 0; state.segCount = 0; state.lastTop = H * 0.7; state.cam.x = 0; state.cam.shake = 0
     state.lastChunkId = ''; state.chunksSinceBreather = 0; state.threatX = -320
-    state.score = 0; state.distance = 0; state.combo = 0; state.over = false
+    state.best = Number(localStorage.getItem(bestKey()) || 0)
+    state.score = 0; state.distance = 0; state.combo = 0; state.maxCombo = 0; state.over = false
     state.coyote = 0; state.wallCoyote = 0; state.buffer = 0
     // A long, safe, enemy-free start so the player gets their footing.
     state.platforms.push({ x: 0, y: state.lastTop, w: 540, h: H - state.lastTop + 260, ground: true, ct: -1 })
@@ -118,7 +122,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
     state.cam.shake = Math.max(state.cam.shake, 10)
     spawn(state.player.x + PW / 2, state.player.y + PH / 2, 18, state.accent, { spread: 220, up: 240, size: 6 })
     const total = state.score * 10 + state.distance
-    if (total > state.best) { state.best = total; localStorage.setItem(BEST_KEY, String(state.best)) }
+    if (total > state.best) { state.best = total; localStorage.setItem(bestKey(), String(state.best)) }
   }
 
   // A damaging hit: consumed by a shield if one is active, otherwise fatal.
@@ -380,6 +384,7 @@ export function createGame(accent: string, accentLight: string, newRng: () => ()
       }
     }
 
+    if (s.combo > s.maxCombo) s.maxCombo = s.combo
     if (p.y > H + 160) endGame()
     prevJump = input.jump; prevDive = input.dive; prevGrapple = input.grapple
   }

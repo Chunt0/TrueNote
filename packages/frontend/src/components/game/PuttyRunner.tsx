@@ -36,6 +36,7 @@ export function PuttyRunner() {
     const newRng = () => (modeRef.current === 'daily' ? mulberry32(dailySeed(Date.now())) : Math.random)
     const game = createGame(accent, '#ffd9cf', newRng)
     game.state.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    game.state.mode = modeRef.current
     setBest(game.state.best)
     const audio = createAudio()
 
@@ -44,7 +45,7 @@ export function PuttyRunner() {
       start: () => { game.reset(); setPhase('playing') },
       resume: () => setPhase('playing'),
       restart: () => { game.reset(); setPhase('playing') },
-      setMode: (m: Mode) => { modeRef.current = m; setModeState(m); game.reset() },
+      setMode: (m: Mode) => { modeRef.current = m; setModeState(m); game.state.mode = m; game.reset(); setBest(game.state.best) },
       toggleSound: () => { const on = !soundRef.current; soundRef.current = on; setSound(on); audio.setMuted(!on) },
     }
 
@@ -90,7 +91,7 @@ export function PuttyRunner() {
     document.addEventListener('visibilitychange', onVis)
 
     return () => { running = false; cancelAnimationFrame(raf); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); document.removeEventListener('visibilitychange', onVis); actions.current = null }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const hold = (k: keyof Input) => ({
     onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); input.current[k] = true },
