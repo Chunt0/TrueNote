@@ -22,6 +22,11 @@ export const PHYS = {
   GRAPPLE_RANGE: 250, // how far an anchor can be to grab it
   GRAPPLE_PULL: 720, // yank speed toward the anchor
   GRAPPLE_REACH: 34, // detach + small launch once this close to the anchor
+  SPRING_V: 1180, // launch velocity from a spring pad
+  HOP_V: 560, // hopper enemy jump velocity
+  MAGNET_RANGE: 165,
+  POWER_T: 8, // power-up duration (seconds)
+  CRUMBLE_DELAY: 0.35, // time a crumbling platform survives after you land
   PW: 36,
   PH: 42,
 } as const

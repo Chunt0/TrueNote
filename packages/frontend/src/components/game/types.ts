@@ -1,7 +1,11 @@
 export interface Rect { x: number; y: number; w: number; h: number }
-export interface Platform extends Rect { ground: boolean }
+export interface Platform extends Rect { ground: boolean; spring?: boolean; crumble?: boolean; ct: number /* crumble countdown, <0 = stable */ }
 export interface Coin { x: number; y: number; taken: boolean; phase: number }
-export interface Enemy { x: number; y: number; w: number; h: number; vx: number; minX: number; maxX: number; dead: boolean; blink: number; wob: number }
+export type EnemyKind = 'gloop' | 'hopper' | 'floater' | 'spiker'
+export interface Enemy { x: number; y: number; w: number; h: number; vx: number; vy: number; minX: number; maxX: number; baseY: number; dead: boolean; blink: number; wob: number; t: number; kind: EnemyKind }
+export interface Hazard extends Rect { kind: 'spikes' }
+export type PowerKind = 'shield' | 'magnet' | 'slowmo' | 'x2'
+export interface PowerUp { x: number; y: number; kind: PowerKind; taken: boolean; phase: number }
 export interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; grav: number }
 export interface Popup { x: number; y: number; text: string; life: number }
 export interface Bubble { x: number; y: number; r: number; vy: number; sway: number; phase: number; near: boolean }
@@ -28,7 +32,8 @@ export interface Input { left: boolean; right: boolean; jump: boolean; dive: boo
 
 export interface GameState {
   W: number; H: number; time: number
-  platforms: Platform[]; coins: Coin[]; enemies: Enemy[]; anchors: Anchor[]
+  platforms: Platform[]; coins: Coin[]; enemies: Enemy[]; anchors: Anchor[]; hazards: Hazard[]; powers: PowerUp[]
+  effects: { shield: boolean; magnet: number; slowmo: number; x2: number }
   particles: Particle[]; popups: Popup[]; bubbles: Bubble[]
   player: Player
   cam: { x: number; shake: number }

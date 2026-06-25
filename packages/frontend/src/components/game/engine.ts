@@ -4,12 +4,15 @@
 // in the chunk-based level grammar.
 import { type ChunkCtx, CHUNKS, pickChunk } from './chunks'
 import { BEST_KEY, PHYS } from './constants'
-import type { Anchor, GameState, Input, Player, Rect } from './types'
+import type { Anchor, EnemyKind, GameState, Input, Player, Rect } from './types'
 
 const { PW, PH } = PHYS
 const rand = (a: number, b: number) => a + Math.random() * (b - a)
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+
+const POWER_COLOR: Record<string, string> = { shield: '#9be8ff', magnet: '#ffd24d', slowmo: '#b388ff', x2: '#ff7ad9' }
+const POWER_LABEL: Record<string, string> = { shield: 'shield!', magnet: 'magnet!', slowmo: 'slow-mo!', x2: 'x2 score!' }
 
 export interface Game {
   state: GameState
@@ -20,7 +23,8 @@ export interface Game {
 export function createGame(accent: string, accentLight: string): Game {
   const state: GameState = {
     W: 800, H: 400, time: 0,
-    platforms: [], coins: [], enemies: [], anchors: [], particles: [], popups: [], bubbles: [],
+    platforms: [], coins: [], enemies: [], anchors: [], hazards: [], powers: [], particles: [], popups: [], bubbles: [],
+    effects: { shield: false, magnet: 0, slowmo: 0, x2: 0 },
     player: blankPlayer(),
     cam: { x: 0, shake: 0 },
     furthestX: 0, lastTop: 0, segCount: 0,
@@ -62,11 +66,15 @@ export function createGame(accent: string, accentLight: string): Game {
       const x0 = state.furthestX
       const ctx: ChunkCtx = {
         x0, groundY: state.lastTop, H, rng: Math.random,
-        plat: (x, y, w) => state.platforms.push({ x, y, w, h: H - y + 260, ground: true }),
-        float: (x, y, w) => state.platforms.push({ x, y, w, h: 16, ground: false }),
-        wall: (x, y, w, h) => state.platforms.push({ x, y, w, h, ground: false }),
+        plat: (x, y, w) => state.platforms.push({ x, y, w, h: H - y + 260, ground: true, ct: -1 }),
+        float: (x, y, w) => state.platforms.push({ x, y, w, h: 16, ground: false, ct: -1 }),
+        wall: (x, y, w, h) => state.platforms.push({ x, y, w, h, ground: false, ct: -1 }),
+        spring: (x, y, w) => state.platforms.push({ x, y, w, h: H - y + 260, ground: true, spring: true, ct: -1 }),
+        crumble: (x, y, w) => state.platforms.push({ x, y, w, h: 16, ground: false, crumble: true, ct: -1 }),
+        spikes: (x, y, w) => state.hazards.push({ x, y, w, h: 18, kind: 'spikes' }),
+        power: (x, y, kind) => state.powers.push({ x, y, kind, taken: false, phase: Math.random() * 6 }),
         coin: (x, y) => state.coins.push({ x, y, taken: false, phase: Math.random() * 6 }),
-        enemy: (x, y, minX, maxX) => state.enemies.push({ x, y, w: 32, h: 30, vx: rand(52, 92) * (Math.random() < 0.5 ? -1 : 1), minX, maxX, dead: false, blink: rand(1, 4), wob: Math.random() * 6 }),
+        enemy: (x, y, minX, maxX, kind: EnemyKind = 'gloop') => state.enemies.push({ x, y, w: 32, h: 30, vx: rand(52, 92) * (Math.random() < 0.5 ? -1 : 1), vy: 0, minX, maxX, baseY: y, dead: false, blink: rand(1, 4), wob: Math.random() * 6, t: rand(0.6, 1.6), kind }),
         anchor: (x, y) => state.anchors.push({ x, y }),
       }
       const { width, exitY } = chunk.build(ctx)
@@ -80,13 +88,14 @@ export function createGame(accent: string, accentLight: string): Game {
 
   function reset() {
     const H = state.H
-    state.platforms = []; state.coins = []; state.enemies = []; state.anchors = []; state.particles = []; state.popups = []
+    state.platforms = []; state.coins = []; state.enemies = []; state.anchors = []; state.hazards = []; state.powers = []; state.particles = []; state.popups = []
+    state.effects = { shield: false, magnet: 0, slowmo: 0, x2: 0 }
     state.furthestX = 0; state.segCount = 0; state.lastTop = H * 0.7; state.cam.x = 0; state.cam.shake = 0
     state.lastChunkId = ''; state.chunksSinceBreather = 0; state.threatX = -320
     state.score = 0; state.distance = 0; state.combo = 0; state.over = false
     state.coyote = 0; state.wallCoyote = 0; state.buffer = 0
     // A long, safe, enemy-free start so the player gets their footing.
-    state.platforms.push({ x: 0, y: state.lastTop, w: 540, h: H - state.lastTop + 260, ground: true })
+    state.platforms.push({ x: 0, y: state.lastTop, w: 540, h: H - state.lastTop + 260, ground: true, ct: -1 })
     state.furthestX = 540
     genChunks(state.W * 1.6)
     const p = blankPlayer()
@@ -102,6 +111,21 @@ export function createGame(accent: string, accentLight: string): Game {
     spawn(state.player.x + PW / 2, state.player.y + PH / 2, 18, state.accent, { spread: 220, up: 240, size: 6 })
     const total = state.score * 10 + state.distance
     if (total > state.best) { state.best = total; localStorage.setItem(BEST_KEY, String(state.best)) }
+  }
+
+  // A damaging hit: consumed by a shield if one is active, otherwise fatal.
+  function hurt(): boolean {
+    const p = state.player
+    if (state.effects.shield) {
+      state.effects.shield = false
+      state.cam.shake = Math.max(state.cam.shake, 7)
+      p.vy = -360; p.diving = false
+      spawn(p.x + PW / 2, p.y + PH / 2, 16, '#9be8ff', { spread: 180, up: 160, size: 5 })
+      state.popups.push({ x: p.x + PW / 2, y: p.y - 10, text: 'shield!', life: 1 })
+      return false
+    }
+    endGame()
+    return true
   }
 
   function sideWall(side: number): boolean {
@@ -131,6 +155,13 @@ export function createGame(accent: string, accentLight: string): Game {
       prevJump = input.jump; prevDive = input.dive; prevGrapple = input.grapple
       return
     }
+
+    // ── Power-up timers + global modifiers. ──
+    if (s.effects.magnet > 0) s.effects.magnet -= dt
+    if (s.effects.slowmo > 0) s.effects.slowmo -= dt
+    if (s.effects.x2 > 0) s.effects.x2 -= dt
+    const slow = s.effects.slowmo > 0 ? 0.45 : 1 // slows enemies + the Devourer
+    const mult = s.effects.x2 > 0 ? 2 : 1 // doubles points
 
     // ── Horizontal: accelerate toward target, friction when idle. ──
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0)
@@ -225,9 +256,16 @@ export function createGame(accent: string, accentLight: string): Game {
         if (!overlap(pr(), pl)) continue
         if (p.vy > 0) {
           const landVy = p.vy
-          p.y = pl.y - PH; p.vy = 0; p.onGround = true
-          if (p.diving) { p.diving = false; s.cam.shake = Math.max(s.cam.shake, 5); spawn(p.x + PW / 2, pl.y, 14, '#caa2ff', { spread: 180, up: 40, grav: 600 }) }
-          else if (!wasGround && landVy > 360) { p.squash = 0.4; s.cam.shake = Math.max(s.cam.shake, clamp(landVy / 240, 1.2, 5)); spawn(p.x + PW / 2, pl.y, Math.min(9, (landVy / 130) | 0), '#caa2ff', { spread: 100, up: 25, grav: 600 }) }
+          p.y = pl.y - PH
+          if (pl.spring) {
+            p.vy = -PHYS.SPRING_V; p.airJumps = 1; p.jumping = true; p.diving = false
+            s.cam.shake = Math.max(s.cam.shake, 3); spawn(p.x + PW / 2, pl.y, 12, '#7be36a', { spread: 120, up: 220, grav: 500 })
+          } else {
+            p.vy = 0; p.onGround = true
+            if (pl.crumble && pl.ct < 0) pl.ct = PHYS.CRUMBLE_DELAY
+            if (p.diving) { p.diving = false; s.cam.shake = Math.max(s.cam.shake, 5); spawn(p.x + PW / 2, pl.y, 14, '#caa2ff', { spread: 180, up: 40, grav: 600 }) }
+            else if (!wasGround && landVy > 360) { p.squash = 0.4; s.cam.shake = Math.max(s.cam.shake, clamp(landVy / 240, 1.2, 5)); spawn(p.x + PW / 2, pl.y, Math.min(9, (landVy / 130) | 0), '#caa2ff', { spread: 100, up: 25, grav: 600 }) }
+          }
         } else if (p.vy < 0) { p.y = pl.y + pl.h; p.vy = 0; p.jumping = false }
       }
     }
@@ -242,46 +280,88 @@ export function createGame(accent: string, accentLight: string): Game {
     s.cam.x += (targetCam - s.cam.x) * Math.min(1, dt * 6)
     genChunks(s.cam.x + W + 460)
 
-    // The Devourer creeps forward (faster with distance); caught = game over.
+    // The Devourer creeps forward (faster with distance; eased by slow-mo).
     const tSpeed = 60 + Math.min(s.distance * 0.16, 150)
-    s.threatX += tSpeed * dt
+    s.threatX += tSpeed * slow * dt
     s.threatX = Math.max(s.threatX, s.cam.x - W * 1.3) // never lurk more than ~1.3 screens back
     if (p.x + PW < s.threatX) { spawn(p.x + PW / 2, p.y + PH / 2, 10, '#c34de6', { spread: 160, up: 160 }); endGame() }
+
+    // Crumbling platforms tick down once triggered, then fall away.
+    for (const pl of s.platforms) if (pl.ct > 0) { pl.ct -= dt; if (pl.ct <= 0) spawn(pl.x + pl.w / 2, pl.y, 8, '#caa2ff', { spread: 80, up: 20, grav: 700 }) }
     const cut = s.cam.x - 220
-    s.platforms = s.platforms.filter((pl) => pl.x + pl.w > cut)
+    s.platforms = s.platforms.filter((pl) => pl.x + pl.w > cut && !(pl.crumble && pl.ct <= 0 && pl.ct > -1))
     s.coins = s.coins.filter((c) => c.x > cut && !c.taken)
     s.enemies = s.enemies.filter((e) => e.x + e.w > cut && !e.dead)
     s.anchors = s.anchors.filter((a) => a.x > cut)
+    s.hazards = s.hazards.filter((hz) => hz.x + hz.w > cut)
+    s.powers = s.powers.filter((pw) => pw.x > cut && !pw.taken)
 
     // ── Orbs. ──
     for (const c of s.coins) {
       if (c.taken) continue
+      if (s.effects.magnet > 0) {
+        const mdx = p.x + PW / 2 - c.x, mdy = p.y + PH / 2 - c.y
+        if (mdx * mdx + mdy * mdy < PHYS.MAGNET_RANGE * PHYS.MAGNET_RANGE) { const k = Math.min(1, dt * 7); c.x += mdx * k; c.y += mdy * k }
+      }
       const dx = p.x + PW / 2 - c.x, dy = p.y + PH / 2 - (c.y + Math.sin(s.time * 3 + c.phase) * 4)
       if (dx * dx + dy * dy < 28 * 28) {
         c.taken = true
         // Air orbs feed the combo and pay the multiplier; ground orbs are +1.
         let pts = 1
         if (!p.onGround) { s.combo++; pts = s.combo }
+        pts *= mult
         s.score += pts
         spawn(c.x, c.y, 10, '#83f1ff', { spread: 90, up: 120, grav: 300 })
-        s.popups.push({ x: c.x, y: c.y - 8, text: pts > 1 ? `+${pts} x${s.combo}` : '+1', life: 0.8 })
+        s.popups.push({ x: c.x, y: c.y - 8, text: pts > 1 ? `+${pts}${s.combo > 1 ? ` x${s.combo}` : ''}` : '+1', life: 0.8 })
       }
     }
 
-    // ── Enemies. ──
+    // ── Enemies (per-kind behavior). ──
     for (const e of s.enemies) {
       if (e.dead) continue
-      e.x += e.vx * dt; e.blink -= dt; if (e.blink < 0) e.blink = rand(1.5, 4); e.wob += dt
+      e.blink -= dt; if (e.blink < 0) e.blink = rand(1.5, 4); e.wob += dt; e.t -= dt
+      if (e.kind === 'floater') {
+        e.y = e.baseY + Math.sin(e.wob * 1.6) * 16
+        e.x += e.vx * 0.5 * slow * dt
+      } else {
+        e.x += e.vx * slow * dt
+        if (e.kind === 'hopper') {
+          e.vy += PHYS.GRAVITY * dt
+          e.y += e.vy * slow * dt
+          if (e.y >= e.baseY) { e.y = e.baseY; e.vy = 0; if (e.t <= 0) { e.vy = -PHYS.HOP_V; e.t = rand(0.9, 1.8) } }
+        }
+      }
       if (e.x < e.minX) { e.x = e.minX; e.vx = Math.abs(e.vx) }
       if (e.x + e.w > e.maxX) { e.x = e.maxX - e.w; e.vx = -Math.abs(e.vx) }
       if (!p.grappling && overlap(pr(), e)) {
-        if (p.prevBottom <= e.y + 8 && p.vy >= 0) {
+        const stomp = p.prevBottom <= e.y + 8 && p.vy >= 0
+        if (e.kind === 'spiker') hurt() // spiky on top — never stompable
+        else if (stomp) {
           e.dead = true; p.vy = -(p.diving ? PHYS.DIVE_BOUNCE : PHYS.JUMP_V * 0.7); p.diving = false; p.airJumps = 1
-          s.combo++; const pts = 2 * Math.max(1, s.combo); s.score += pts
+          s.combo++; const pts = 2 * Math.max(1, s.combo) * mult; s.score += pts
           s.cam.shake = Math.max(s.cam.shake, 4)
-          spawn(e.x + e.w / 2, e.y + e.h / 2, 16, '#86e36a', { spread: 160, up: 160, grav: 800, size: 5 })
+          spawn(e.x + e.w / 2, e.y + e.h / 2, 16, e.kind === 'floater' ? '#8be9ff' : '#86e36a', { spread: 160, up: 160, grav: 800, size: 5 })
           s.popups.push({ x: e.x + e.w / 2, y: e.y, text: s.combo > 1 ? `+${pts} x${s.combo}` : `+${pts}`, life: 0.9 })
-        } else endGame()
+        } else hurt()
+      }
+    }
+
+    // ── Spikes (deadly). ──
+    if (!p.grappling) for (const hz of s.hazards) { if (overlap(pr(), hz)) { hurt(); break } }
+
+    // ── Power-ups. ──
+    for (const pw of s.powers) {
+      if (pw.taken) continue
+      const dx = p.x + PW / 2 - pw.x, dy = p.y + PH / 2 - pw.y
+      if (dx * dx + dy * dy < 30 * 30) {
+        pw.taken = true
+        if (pw.kind === 'shield') s.effects.shield = true
+        else if (pw.kind === 'magnet') s.effects.magnet = PHYS.POWER_T
+        else if (pw.kind === 'slowmo') s.effects.slowmo = PHYS.POWER_T
+        else s.effects.x2 = PHYS.POWER_T
+        s.cam.shake = Math.max(s.cam.shake, 3)
+        spawn(pw.x, pw.y, 16, POWER_COLOR[pw.kind], { spread: 150, up: 170, size: 5 })
+        s.popups.push({ x: pw.x, y: pw.y - 12, text: POWER_LABEL[pw.kind], life: 1.2 })
       }
     }
 

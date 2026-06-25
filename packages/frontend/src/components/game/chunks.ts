@@ -4,6 +4,8 @@
 // Gaps/steps are sized against the jump arc so nothing is impossible. The engine
 // owns the stitcher (it has the state); this file is the library + picker.
 
+import type { EnemyKind, PowerKind } from './types'
+
 export interface ChunkCtx {
   x0: number
   groundY: number
@@ -13,9 +15,16 @@ export interface ChunkCtx {
   float: (x: number, y: number, w: number) => void // thin floating platform
   wall: (x: number, y: number, w: number, h: number) => void // vertical wall (clingable)
   coin: (x: number, y: number) => void
-  enemy: (x: number, y: number, minX: number, maxX: number) => void
+  enemy: (x: number, y: number, minX: number, maxX: number, kind?: EnemyKind) => void
   anchor: (x: number, y: number) => void // grapple point
+  spikes: (x: number, y: number, w: number) => void // deadly hazard strip
+  spring: (x: number, y: number, w: number) => void // launch pad
+  crumble: (x: number, y: number, w: number) => void // platform that falls after you land
+  power: (x: number, y: number, kind: PowerKind) => void // timed power-up
 }
+
+const POWERS: PowerKind[] = ['shield', 'magnet', 'slowmo', 'x2']
+const anyPower = (c: ChunkCtx) => POWERS[(c.rng() * POWERS.length) | 0]
 
 export interface Chunk {
   id: string
@@ -60,7 +69,27 @@ export const CHUNKS: Chunk[] = [
   },
   {
     id: 'floaters', difficulty: 2, minDist: 120, skills: ['jump', 'double'],
-    build: (c) => { const w = 360; c.plat(c.x0, c.groundY, w); for (let i = 0; i < 3; i++) { const fx = c.x0 + 70 + i * 100, fy = c.groundY - 110 - (i % 2) * 50; c.float(fx, fy, 76); coinArc(c, fx + 14, fy - 30, 3, 24) } return { width: w, exitY: c.groundY } },
+    build: (c) => { const w = 360; c.plat(c.x0, c.groundY, w); for (let i = 0; i < 3; i++) { const fx = c.x0 + 70 + i * 100, fy = c.groundY - 110 - (i % 2) * 50; c.float(fx, fy, 76); coinArc(c, fx + 14, fy - 30, 3, 24) } if (c.rng() < 0.4) c.power(c.x0 + 180, c.groundY - 200, anyPower(c)); return { width: w, exitY: c.groundY } },
+  },
+  {
+    id: 'spike-gap', difficulty: 3, minDist: 240, skills: ['jump'],
+    build: (c) => { const a = 160, sp = 120, b = 170; c.plat(c.x0, c.groundY, a); c.spikes(c.x0 + a, c.groundY - 18, sp); c.plat(c.x0 + a + sp, c.groundY, b); coinArc(c, c.x0 + a + 14, c.groundY - 70, 4, (sp + 12) / 4); return { width: a + sp + b, exitY: c.groundY } },
+  },
+  {
+    id: 'spring-up', difficulty: 2, minDist: 180, skills: ['jump'],
+    build: (c) => { c.plat(c.x0, c.groundY, 130); c.spring(c.x0 + 140, c.groundY, 70); c.plat(c.x0 + 240, c.groundY, 160); c.float(c.x0 + 150, c.groundY - 250, 150); coinArc(c, c.x0 + 165, c.groundY - 290, 5, 26, 14); c.power(c.x0 + 225, c.groundY - 300, anyPower(c)); return { width: 400, exitY: c.groundY } },
+  },
+  {
+    id: 'crumble-run', difficulty: 3, minDist: 300, skills: ['jump'],
+    build: (c) => { let x = c.x0; c.plat(x, c.groundY, 110); x += 110; const g = 70, cw = 84; for (let i = 0; i < 3; i++) { x += g; c.crumble(x, c.groundY, cw); c.coin(x + cw / 2, c.groundY - 44) } x += g; c.plat(x, c.groundY, 150); return { width: x + 150 - c.x0, exitY: c.groundY } },
+  },
+  {
+    id: 'floater-field', difficulty: 3, minDist: 260, skills: ['dive', 'double'],
+    build: (c) => { const w = 360; c.plat(c.x0, c.groundY, w); for (let i = 0; i < 3; i++) { const ex = c.x0 + 80 + i * 95; c.enemy(ex, c.groundY - 120 - (i % 2) * 36, ex - 30, ex + 30, 'floater') } coinArc(c, c.x0 + 70, c.groundY - 70, 5, 50, 30); return { width: w, exitY: c.groundY } },
+  },
+  {
+    id: 'mixed-enemies', difficulty: 4, minDist: 380, skills: ['dive'],
+    build: (c) => { const w = 380; c.plat(c.x0, c.groundY, w); c.enemy(c.x0 + 90, c.groundY - 30, c.x0 + 20, c.x0 + w - 20, 'hopper'); c.enemy(c.x0 + 230, c.groundY - 26, c.x0 + 150, c.x0 + w - 20, 'spiker'); coinArc(c, c.x0 + 120, c.groundY - 100, 4, 44, 44); return { width: w, exitY: c.groundY } },
   },
   {
     id: 'enemy-line', difficulty: 2, minDist: 120, skills: ['dive'],
